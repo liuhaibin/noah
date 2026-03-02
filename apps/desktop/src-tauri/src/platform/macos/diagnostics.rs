@@ -420,10 +420,15 @@ impl Tool for ShellRun {
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing required parameter: command"))?;
 
-        let output = Command::new("/bin/zsh")
-            .args(["-c", command])
-            .output()
-            .map(|o| {
+        let output = match tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            tokio::process::Command::new("/bin/zsh")
+                .args(["-c", command])
+                .output(),
+        )
+        .await
+        {
+            Ok(Ok(o)) => {
                 let stdout = String::from_utf8_lossy(&o.stdout).to_string();
                 let stderr = String::from_utf8_lossy(&o.stderr).to_string();
                 let exit_code = o.status.code().unwrap_or(-1);
@@ -444,8 +449,10 @@ impl Tool for ShellRun {
                     result.push_str(&format!("\n\n[exit code: {}]", exit_code));
                 }
                 result
-            })
-            .unwrap_or_else(|e| format!("Failed to execute command: {}", e));
+            }
+            Ok(Err(e)) => format!("Failed to execute command: {}", e),
+            Err(_) => "Command timed out after 60 seconds. The command was taking too long and has been stopped.".to_string(),
+        };
 
         // Limit output length
         let truncated = if output.len() > 10_000 {
