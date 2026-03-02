@@ -124,6 +124,7 @@ pub fn run() {
             commands::settings::get_app_version,
             commands::artifacts::list_artifacts,
             commands::artifacts::delete_artifact,
+            commands::artifacts::get_contextual_suggestions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

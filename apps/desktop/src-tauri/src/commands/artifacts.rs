@@ -1,6 +1,6 @@
 use tauri::State;
 
-use crate::artifacts::{self, Artifact};
+use crate::artifacts::{self, Artifact, Suggestion};
 use crate::AppState;
 
 #[tauri::command]
@@ -22,4 +22,13 @@ pub async fn delete_artifact(
     let conn = state.db.lock().await;
     artifacts::delete_artifact(&conn, &artifact_id)
         .map_err(|e| format!("Failed to delete artifact: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_contextual_suggestions(
+    state: State<'_, AppState>,
+) -> Result<Vec<Suggestion>, String> {
+    let conn = state.db.lock().await;
+    artifacts::get_contextual_suggestions(&conn)
+        .map_err(|e| format!("Failed to get suggestions: {}", e))
 }

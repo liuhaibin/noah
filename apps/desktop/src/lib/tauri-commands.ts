@@ -118,6 +118,15 @@ export async function deleteArtifact(artifactId: string): Promise<void> {
   await invoke<void>("delete_artifact", { artifactId });
 }
 
+export interface Suggestion {
+  label: string;
+  description: string;
+}
+
+export async function getContextualSuggestions(): Promise<Suggestion[]> {
+  return await invoke<Suggestion[]>("get_contextual_suggestions");
+}
+
 export async function getAppVersion(): Promise<string> {
   return await invoke<string>("get_app_version");
 }

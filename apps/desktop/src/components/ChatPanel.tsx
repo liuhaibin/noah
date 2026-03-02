@@ -6,6 +6,7 @@ import type { Message, ToolCall } from "../stores/chatStore";
 import { useAgent } from "../hooks/useAgent";
 import { VoiceButton } from "./VoiceButton";
 import { parseResponse } from "../lib/parseResponse";
+import * as commands from "../lib/tauri-commands";
 
 // ── Tool Call Display ──
 
@@ -457,6 +458,24 @@ function SuggestionCards({
   onSelect: (text: string) => void;
   disabled: boolean;
 }) {
+  const [contextual, setContextual] = useState<
+    { icon: string; label: string; description: string }[]
+  >([]);
+
+  useEffect(() => {
+    commands.getContextualSuggestions().then((suggestions) => {
+      setContextual(
+        suggestions.map((s) => ({
+          icon: "\uD83D\uDD04",
+          label: s.label,
+          description: s.description,
+        })),
+      );
+    }).catch(() => {});
+  }, []);
+
+  const allSuggestions = [...contextual, ...SUGGESTIONS].slice(0, 4);
+
   return (
     <div className="flex flex-col items-center justify-center h-full text-text-muted">
       <div className="w-16 h-16 rounded-2xl bg-accent-green/10 border border-accent-green/20 flex items-center justify-center mb-4">
@@ -480,10 +499,12 @@ function SuggestionCards({
         What can I help with?
       </p>
       <p className="text-xs text-text-muted mb-5">
-        Try one of these, or type anything below.
+        {contextual.length > 0
+          ? "Based on what I know about your system, or try something new."
+          : "Try one of these, or type anything below."}
       </p>
       <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm">
-        {SUGGESTIONS.map((s) => (
+        {allSuggestions.map((s) => (
           <button
             key={s.label}
             onClick={() => onSelect(s.label)}

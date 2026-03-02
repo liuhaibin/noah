@@ -193,6 +193,44 @@ pub fn artifacts_for_prompt(conn: &Connection) -> Result<String> {
     Ok(lines.join("\n"))
 }
 
+// ── Contextual Suggestions ──────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Suggestion {
+    pub label: String,
+    pub description: String,
+}
+
+/// Generate contextual suggestions based on recent knowledge artifacts.
+/// Returns up to 2 suggestions from resolved issues / recurring patterns.
+pub fn get_contextual_suggestions(conn: &Connection) -> Result<Vec<Suggestion>> {
+    let mut suggestions = Vec::new();
+
+    // Get recent resolved issues (max 2)
+    let mut stmt = conn.prepare(
+        "SELECT title, content FROM artifacts
+         WHERE category IN ('resolved_issue', 'recurring_pattern')
+         ORDER BY updated_at DESC LIMIT 2",
+    )?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+        ))
+    })?;
+
+    for row in rows {
+        let (title, _content) = row?;
+        suggestions.push(Suggestion {
+            label: format!("Check on: {}", title),
+            description: "Follow up on a previous issue".to_string(),
+        });
+    }
+
+    Ok(suggestions)
+}
+
 // ── LLM Tools ───────────────────────────────────────────────────────────
 
 pub struct SaveArtifactTool {
