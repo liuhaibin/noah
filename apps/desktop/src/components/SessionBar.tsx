@@ -1,5 +1,6 @@
 import { useSessionStore } from "../stores/sessionStore";
 import { useDebugStore } from "../stores/debugStore";
+import { NoahIcon } from "./NoahIcon";
 
 interface SessionBarProps {
   session: {
@@ -28,22 +29,7 @@ export function SessionBar({ session }: SessionBarProps) {
       {/* Left: Logo and title */}
       <div className="flex items-center gap-3" data-tauri-drag-region="">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-accent-green flex items-center justify-center">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {/* Wrench icon */}
-              <path
-                d="M10.3 2.2a4.2 4.2 0 0 0-4.5 1L8 5.4 7.4 7l-1.6.6L3.6 5.4a4.2 4.2 0 0 0 1 4.5l4.5 4.5a1 1 0 0 0 1.4 0l3.5-3.5a1 1 0 0 0 0-1.4L10.3 2.2Z"
-                fill="white"
-                fillOpacity="0.9"
-              />
-            </svg>
-          </div>
+          <NoahIcon className="w-7 h-7 rounded-lg" alt="Noah" />
           <span className="text-sm font-semibold tracking-wide text-text-primary">
             Noah
           </span>

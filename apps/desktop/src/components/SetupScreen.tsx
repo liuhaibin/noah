@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import * as commands from "../lib/tauri-commands";
+import { NoahIcon } from "./NoahIcon";
 
 interface SetupScreenProps {
   onComplete: () => void;
@@ -38,21 +39,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-accent-green flex items-center justify-center mb-4">
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M10.3 2.2a4.2 4.2 0 0 0-4.5 1L8 5.4 7.4 7l-1.6.6L3.6 5.4a4.2 4.2 0 0 0 1 4.5l4.5 4.5a1 1 0 0 0 1.4 0l3.5-3.5a1 1 0 0 0 0-1.4L10.3 2.2Z"
-                fill="white"
-                fillOpacity="0.9"
-              />
-            </svg>
-          </div>
+          <NoahIcon className="w-16 h-16 rounded-2xl mb-4" alt="Noah" />
           <h1 className="text-xl font-semibold text-text-primary">
             Welcome to Noah
           </h1>
