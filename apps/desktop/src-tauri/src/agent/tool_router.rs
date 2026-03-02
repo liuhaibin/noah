@@ -59,9 +59,17 @@ mod tests {
         let mut router = ToolRouter::new();
         platform::register_platform_tools(&mut router);
 
-        // Should find a known tool
-        assert!(router.find_tool("mac_system_summary").is_some());
-        assert!(router.find_tool("mac_ping").is_some());
+        // Should find platform-appropriate tools
+        #[cfg(target_os = "macos")]
+        {
+            assert!(router.find_tool("mac_system_summary").is_some());
+            assert!(router.find_tool("mac_ping").is_some());
+        }
+        #[cfg(target_os = "windows")]
+        {
+            assert!(router.find_tool("win_system_summary").is_some());
+            assert!(router.find_tool("win_ping").is_some());
+        }
         // Should return None for unknown
         assert!(router.find_tool("nonexistent_tool").is_none());
     }
