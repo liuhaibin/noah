@@ -14,6 +14,8 @@ export interface Message {
   content: string;
   timestamp: number;
   toolCalls?: ToolCall[];
+  actionTaken?: boolean;
+  actionConfirmation?: boolean;
 }
 
 interface ChatState {
@@ -25,6 +27,7 @@ interface ChatState {
     toolCallId: string,
     updates: Partial<ToolCall>,
   ) => void;
+  markActionTaken: (messageId: string) => void;
   clearMessages: () => void;
 }
 
@@ -68,6 +71,13 @@ export const useChatStore = create<ChatState>((set) => ({
           ),
         };
       }),
+    })),
+
+  markActionTaken: (id) =>
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        msg.id === id ? { ...msg, actionTaken: true } : msg,
+      ),
     })),
 
   clearMessages: () => set({ messages: [] }),

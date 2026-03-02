@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
 
@@ -25,6 +25,27 @@ pub struct ApprovalRequest {
     pub parameters: Value,
 }
 
+/// A debug event emitted to the frontend for observability.
+#[derive(Debug, Clone, Serialize)]
+struct DebugEvent {
+    timestamp: String,
+    event_type: String,
+    summary: String,
+    detail: Value,
+}
+
+fn emit_debug(app_handle: &tauri::AppHandle, event_type: &str, summary: &str, detail: Value) {
+    use tauri::Emitter;
+
+    let event = DebugEvent {
+        timestamp: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        event_type: event_type.to_string(),
+        summary: summary.to_string(),
+        detail,
+    };
+    let _ = app_handle.emit("debug-log", &event);
+}
+
 /// Session state kept in memory.
 pub struct Session {
     pub id: String,
@@ -37,17 +58,24 @@ pub struct Orchestrator {
     router: ToolRouter,
     sessions: HashMap<String, Session>,
     /// Pending approval channels: approval_id -> oneshot sender (true = approved).
-    pending_approvals: Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>,
+    pending_approvals: PendingApprovals,
     os_context: String,
 }
 
+pub type PendingApprovals = Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>;
+
 impl Orchestrator {
-    pub fn new(llm: LlmClient, router: ToolRouter, os_context: String) -> Self {
+    pub fn new(
+        llm: LlmClient,
+        router: ToolRouter,
+        os_context: String,
+        pending_approvals: PendingApprovals,
+    ) -> Self {
         Self {
             llm,
             router,
             sessions: HashMap::new(),
-            pending_approvals: Arc::new(Mutex::new(HashMap::new())),
+            pending_approvals,
             os_context,
         }
     }
@@ -120,6 +148,21 @@ impl Orchestrator {
             // Clone messages for the LLM call to avoid borrow issues.
             let messages = self.sessions[session_id].messages.clone();
 
+            emit_debug(
+                app_handle,
+                "llm_request",
+                &format!(
+                    "Calling Claude with {} messages, {} tools",
+                    messages.len(),
+                    tool_defs.len()
+                ),
+                json!({
+                    "message_count": messages.len(),
+                    "tool_count": tool_defs.len(),
+                    "last_user_message_preview": user_message.chars().take(200).collect::<String>(),
+                }),
+            );
+
             let response = self
                 .llm
                 .send_message(messages, tool_defs.clone(), &system)
@@ -139,6 +182,25 @@ impl Orchestrator {
                     }
                 }
             }
+
+            emit_debug(
+                app_handle,
+                "llm_response",
+                &format!(
+                    "Response: {} text blocks, {} tool calls",
+                    text_parts.len(),
+                    tool_uses.len()
+                ),
+                json!({
+                    "stop_reason": response.stop_reason,
+                    "text_blocks": text_parts.len(),
+                    "tool_calls": tool_uses.len(),
+                    "usage": {
+                        "input_tokens": response.usage.input_tokens,
+                        "output_tokens": response.usage.output_tokens,
+                    },
+                }),
+            );
 
             // Add the assistant message to history (as blocks).
             let assistant_blocks: Vec<ContentBlock> = response
@@ -171,19 +233,54 @@ impl Orchestrator {
             let mut tool_result_blocks: Vec<ContentBlock> = Vec::new();
 
             for (tool_use_id, tool_name, tool_input) in tool_uses {
+                let tier_label = self
+                    .router
+                    .find_tool(&tool_name)
+                    .map(|t| format!("{:?}", t.safety_tier()))
+                    .unwrap_or_else(|| "unknown".to_string());
+
+                emit_debug(
+                    app_handle,
+                    "tool_call",
+                    &format!("Calling {} [{}]", tool_name, tier_label),
+                    json!({
+                        "name": tool_name,
+                        "input": tool_input,
+                        "safety_tier": tier_label,
+                    }),
+                );
+
                 let result = self
                     .execute_tool(session_id, &tool_name, &tool_input, app_handle, db)
                     .await;
 
                 match result {
-                    Ok(output) => {
+                    Ok(ref output) => {
+                        emit_debug(
+                            app_handle,
+                            "tool_result",
+                            &format!("{} completed", tool_name),
+                            json!({
+                                "name": tool_name,
+                                "output_preview": output.chars().take(500).collect::<String>(),
+                            }),
+                        );
                         tool_result_blocks.push(ContentBlock::ToolResult {
                             tool_use_id,
-                            content: output,
+                            content: output.clone(),
                             is_error: None,
                         });
                     }
-                    Err(e) => {
+                    Err(ref e) => {
+                        emit_debug(
+                            app_handle,
+                            "error",
+                            &format!("{} failed: {}", tool_name, e),
+                            json!({
+                                "name": tool_name,
+                                "error": format!("{}", e),
+                            }),
+                        );
                         tool_result_blocks.push(ContentBlock::ToolResult {
                             tool_use_id,
                             content: format!("Error: {}", e),
@@ -227,6 +324,15 @@ impl Orchestrator {
                 .await?;
 
             if !approved {
+                emit_debug(
+                    app_handle,
+                    "tool_denied",
+                    &format!("User denied {}", tool_name),
+                    json!({
+                        "name": tool_name,
+                        "input": tool_input,
+                    }),
+                );
                 return Ok("Action denied by user.".to_string());
             }
         }
@@ -292,7 +398,12 @@ mod tests {
     fn test_orchestrator() -> Orchestrator {
         let llm = LlmClient::new(String::new());
         let router = ToolRouter::new();
-        Orchestrator::new(llm, router, "test context".to_string())
+        Orchestrator::new(
+            llm,
+            router,
+            "test context".to_string(),
+            Arc::new(Mutex::new(HashMap::new())),
+        )
     }
 
     #[test]

@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { useChatStore } from "../stores/chatStore";
 import type { Message, ToolCall } from "../stores/chatStore";
 import { useAgent } from "../hooks/useAgent";
 import { VoiceButton } from "./VoiceButton";
+import { parseResponse } from "../lib/parseResponse";
 
 // ── Tool Call Display ──
 
@@ -17,10 +19,10 @@ function ToolCallItem({ toolCall }: { toolCall: ToolCall }) {
   }[toolCall.status];
 
   const statusIcon = {
-    pending: "\u25CB", // circle
-    running: "\u25D4", // half circle
-    completed: "\u2713", // check
-    denied: "\u2715", // cross
+    pending: "\u25CB",
+    running: "\u25D4",
+    completed: "\u2713",
+    denied: "\u2715",
   }[toolCall.status];
 
   return (
@@ -57,7 +59,175 @@ function ToolCallItem({ toolCall }: { toolCall: ToolCall }) {
   );
 }
 
-// ── Single Message Bubble ──
+// ── Action Card ──
+
+function ActionCard({
+  situation,
+  plan,
+  actionLabel,
+  actionTaken,
+  isProcessing,
+  timestamp,
+  onDoIt,
+}: {
+  situation: string;
+  plan: string;
+  actionLabel: string;
+  actionTaken?: boolean;
+  isProcessing: boolean;
+  timestamp: number;
+  onDoIt: () => void;
+}) {
+  return (
+    <div className="flex justify-start animate-fade-in">
+      <div className="max-w-[80%] rounded-xl border border-border-primary bg-bg-assistant-bubble overflow-hidden">
+        {/* Header */}
+        <div className="px-4 pt-3 pb-1">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-accent-blue">
+            ITMan
+          </span>
+        </div>
+
+        {/* Situation */}
+        <div className="px-4 pb-2">
+          <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">
+            Situation
+          </div>
+          <div className="text-sm text-text-primary leading-relaxed">
+            {situation}
+          </div>
+        </div>
+
+        {/* Plan */}
+        <div className="px-4 pb-3">
+          <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">
+            Plan
+          </div>
+          <div className="text-sm text-text-secondary leading-relaxed">
+            {plan}
+          </div>
+        </div>
+
+        {/* Action button */}
+        <div className="px-4 pb-3">
+          <button
+            onClick={onDoIt}
+            disabled={actionTaken || isProcessing}
+            className={`
+              w-full py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer
+              ${
+                actionTaken
+                  ? "bg-bg-tertiary text-text-muted cursor-default"
+                  : isProcessing
+                    ? "bg-bg-tertiary text-text-muted cursor-not-allowed"
+                    : "bg-accent-green text-white hover:bg-accent-green/80"
+              }
+            `}
+          >
+            {actionTaken ? "Sent" : actionLabel}
+          </button>
+        </div>
+
+        {/* Timestamp */}
+        <div className="px-4 pb-2 text-[10px] text-text-muted">
+          {new Date(timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Done Card ──
+
+function DoneCard({
+  summary,
+  timestamp,
+}: {
+  summary: string;
+  timestamp: number;
+}) {
+  return (
+    <div className="flex justify-start animate-fade-in">
+      <div className="max-w-[80%] rounded-xl border border-accent-green/30 bg-accent-green/5 px-4 py-3">
+        <div className="flex items-start gap-2.5">
+          <span className="text-accent-green text-base mt-0.5">{"\u2713"}</span>
+          <div className="flex-1">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-accent-green">
+              Done
+            </span>
+            <div className="text-sm text-text-primary leading-relaxed mt-1">
+              {summary}
+            </div>
+            <div className="text-[10px] text-text-muted mt-1.5">
+              {new Date(timestamp).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Info Card ──
+
+function InfoCard({
+  summary,
+  timestamp,
+}: {
+  summary: string;
+  timestamp: number;
+}) {
+  return (
+    <div className="flex justify-start animate-fade-in">
+      <div className="max-w-[80%] rounded-xl border border-accent-blue/30 bg-accent-blue/5 px-4 py-3">
+        <div className="flex items-start gap-2.5">
+          <span className="text-accent-blue text-base mt-0.5">{"\u2139"}</span>
+          <div className="flex-1">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-accent-blue">
+              ITMan
+            </span>
+            <div className="text-sm text-text-primary leading-relaxed mt-1">
+              {summary}
+            </div>
+            <div className="text-[10px] text-text-muted mt-1.5">
+              {new Date(timestamp).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Confirmation Pill (for "Go ahead" user messages) ──
+
+function ConfirmationPill({ timestamp }: { timestamp: number }) {
+  return (
+    <div className="flex justify-end animate-fade-in">
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent-green/15 text-accent-green text-xs font-medium">
+        <span>{"\u2713"}</span>
+        <span>Go ahead</span>
+        <span className="text-[10px] text-accent-green/60 ml-1">
+          {new Date(timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Single Message Bubble (fallback for unstructured messages) ──
 
 function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
@@ -81,7 +251,6 @@ function MessageBubble({ message }: { message: Message }) {
           }
         `}
       >
-        {/* Role label for assistant/system */}
         {!isUser && (
           <div className="flex items-center gap-1.5 mb-1">
             <span
@@ -94,7 +263,6 @@ function MessageBubble({ message }: { message: Message }) {
           </div>
         )}
 
-        {/* Message content */}
         <div
           className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
             isSystem ? "font-mono text-xs" : ""
@@ -103,7 +271,6 @@ function MessageBubble({ message }: { message: Message }) {
           {message.content}
         </div>
 
-        {/* Tool calls */}
         {message.toolCalls && message.toolCalls.length > 0 && (
           <div className="mt-1">
             {message.toolCalls.map((tc) => (
@@ -112,7 +279,6 @@ function MessageBubble({ message }: { message: Message }) {
           </div>
         )}
 
-        {/* Timestamp */}
         <div
           className={`text-[10px] mt-1 ${
             isUser ? "text-white/50 text-right" : "text-text-muted"
@@ -128,9 +294,110 @@ function MessageBubble({ message }: { message: Message }) {
   );
 }
 
-// ── Thinking Indicator ──
+// ── Message Router (picks the right card for each message) ──
+
+function MessageDisplay({
+  message,
+  isProcessing,
+  onConfirm,
+}: {
+  message: Message;
+  isProcessing: boolean;
+  onConfirm: (messageId: string) => void;
+}) {
+  // User confirmation pill
+  if (message.role === "user" && message.actionConfirmation) {
+    return <ConfirmationPill timestamp={message.timestamp} />;
+  }
+
+  // Non-assistant messages use the regular bubble
+  if (message.role !== "assistant") {
+    return <MessageBubble message={message} />;
+  }
+
+  // Parse assistant messages for structured format
+  const parsed = parseResponse(message.content);
+
+  switch (parsed.type) {
+    case "action":
+      return (
+        <ActionCard
+          situation={parsed.situation}
+          plan={parsed.plan}
+          actionLabel={parsed.actionLabel}
+          actionTaken={message.actionTaken}
+          isProcessing={isProcessing}
+          timestamp={message.timestamp}
+          onDoIt={() => onConfirm(message.id)}
+        />
+      );
+    case "done":
+      return <DoneCard summary={parsed.summary} timestamp={message.timestamp} />;
+    case "info":
+      return <InfoCard summary={parsed.summary} timestamp={message.timestamp} />;
+    default:
+      return <MessageBubble message={message} />;
+  }
+}
+
+// ── Humanize tool names for the thinking indicator ──
+
+const TOOL_HUMAN_NAMES: Record<string, string> = {
+  mac_network_info: "Checking network",
+  mac_ping: "Testing connectivity",
+  mac_dns_check: "Checking DNS",
+  mac_http_check: "Testing web access",
+  mac_flush_dns: "Flushing DNS cache",
+  mac_system_info: "Checking system",
+  mac_system_summary: "Running diagnostics",
+  mac_process_list: "Listing processes",
+  mac_disk_usage: "Checking disk space",
+  mac_printer_list: "Checking printers",
+  mac_print_queue: "Checking print queue",
+  mac_app_list: "Listing applications",
+  mac_app_logs: "Reading app logs",
+  mac_read_file: "Reading file",
+  mac_read_log: "Reading logs",
+  shell_run: "Running command",
+  mac_kill_process: "Stopping process",
+  mac_clear_caches: "Clearing caches",
+  mac_clear_app_cache: "Clearing app cache",
+  mac_restart_cups: "Restarting print service",
+  mac_cancel_print_jobs: "Cancelling print jobs",
+  mac_move_file: "Moving file",
+};
+
+function humanizeToolCall(summary: string): string {
+  const match = summary.match(/Calling (\w+)/);
+  if (!match) return "Working...";
+  return TOOL_HUMAN_NAMES[match[1]] || "Working...";
+}
+
+// ── Thinking Indicator with live status ──
+
+interface DebugLogPayload {
+  event_type: string;
+  summary: string;
+}
 
 function ThinkingIndicator() {
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unlisten = listen<DebugLogPayload>("debug-log", (e) => {
+      const evt = e.payload;
+      if (evt.event_type === "tool_call") {
+        setStatus(humanizeToolCall(evt.summary));
+      } else if (evt.event_type === "llm_request") {
+        setStatus("Thinking...");
+      }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
   return (
     <div className="flex justify-start animate-fade-in">
       <div className="bg-bg-assistant-bubble border border-border-primary rounded-xl rounded-bl-sm px-4 py-3">
@@ -139,10 +406,15 @@ function ThinkingIndicator() {
             ITMan
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
-          <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
-          <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
+            <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
+            <div className="w-1.5 h-1.5 rounded-full bg-text-muted thinking-dot" />
+          </div>
+          {status && (
+            <span className="text-xs text-text-muted">{status}</span>
+          )}
         </div>
       </div>
     </div>
@@ -153,7 +425,7 @@ function ThinkingIndicator() {
 
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
-  const { sendMessage, isProcessing } = useAgent();
+  const { sendMessage, sendConfirmation, isProcessing } = useAgent();
 
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -224,7 +496,12 @@ export function ChatPanel() {
         ) : (
           <div className="max-w-2xl mx-auto space-y-3">
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
+              <MessageDisplay
+                key={msg.id}
+                message={msg}
+                isProcessing={isProcessing}
+                onConfirm={sendConfirmation}
+              />
             ))}
             {isProcessing && <ThinkingIndicator />}
             <div ref={messagesEndRef} />

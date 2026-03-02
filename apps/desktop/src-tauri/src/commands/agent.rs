@@ -22,9 +22,13 @@ pub async fn approve_action(
     state: State<'_, AppState>,
     approval_id: String,
 ) -> Result<bool, String> {
-    let orchestrator = state.orchestrator.lock().await;
-    let found = orchestrator.resolve_approval(&approval_id, true).await;
-    Ok(found)
+    let mut pending = state.pending_approvals.lock().await;
+    if let Some(sender) = pending.remove(&approval_id) {
+        let _ = sender.send(true);
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 #[tauri::command]
@@ -32,7 +36,11 @@ pub async fn deny_action(
     state: State<'_, AppState>,
     approval_id: String,
 ) -> Result<bool, String> {
-    let orchestrator = state.orchestrator.lock().await;
-    let found = orchestrator.resolve_approval(&approval_id, false).await;
-    Ok(found)
+    let mut pending = state.pending_approvals.lock().await;
+    if let Some(sender) = pending.remove(&approval_id) {
+        let _ = sender.send(false);
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }

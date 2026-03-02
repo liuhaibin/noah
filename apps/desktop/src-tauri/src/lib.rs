@@ -3,18 +3,22 @@ mod commands;
 mod platform;
 mod safety;
 
+use std::collections::HashMap;
 use std::process::Command;
+use std::sync::Arc;
 use tauri::Manager;
+use tokio::sync::{oneshot, Mutex};
 
 use agent::llm_client::LlmClient;
-use agent::orchestrator::Orchestrator;
+use agent::orchestrator::{Orchestrator, PendingApprovals};
 use agent::tool_router::ToolRouter;
 use safety::journal;
 
 /// Shared application state managed by Tauri.
 pub struct AppState {
-    pub orchestrator: tokio::sync::Mutex<Orchestrator>,
-    pub db: tokio::sync::Mutex<rusqlite::Connection>,
+    pub orchestrator: Mutex<Orchestrator>,
+    pub pending_approvals: PendingApprovals,
+    pub db: Mutex<rusqlite::Connection>,
 }
 
 /// Gather OS context string to include in the system prompt.
@@ -81,16 +85,21 @@ pub fn run() {
                 std::env::var("ANTHROPIC_API_KEY").unwrap_or_default();
             let llm = LlmClient::new(api_key);
 
+            let pending_approvals: PendingApprovals =
+                Arc::new(Mutex::new(HashMap::<String, oneshot::Sender<bool>>::new()));
+
             // Gather OS context for the system prompt.
             let os_context = gather_os_context();
 
             // Build the orchestrator.
-            let orchestrator = Orchestrator::new(llm, router, os_context);
+            let orchestrator =
+                Orchestrator::new(llm, router, os_context, pending_approvals.clone());
 
             // Manage shared state.
             app.manage(AppState {
-                orchestrator: tokio::sync::Mutex::new(orchestrator),
-                db: tokio::sync::Mutex::new(db),
+                orchestrator: Mutex::new(orchestrator),
+                pending_approvals,
+                db: Mutex::new(db),
             });
 
             Ok(())

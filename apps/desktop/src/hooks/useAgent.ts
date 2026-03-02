@@ -5,12 +5,14 @@ import * as commands from "../lib/tauri-commands";
 
 interface UseAgentReturn {
   sendMessage: (text: string) => Promise<void>;
+  sendConfirmation: (messageId: string) => Promise<void>;
   isProcessing: boolean;
 }
 
 export function useAgent(): UseAgentReturn {
   const [isProcessing, setIsProcessing] = useState(false);
   const addMessage = useChatStore((s) => s.addMessage);
+  const markActionTaken = useChatStore((s) => s.markActionTaken);
   const sessionId = useSessionStore((s) => s.sessionId);
   const setChanges = useSessionStore((s) => s.setChanges);
 
@@ -23,13 +25,9 @@ export function useAgent(): UseAgentReturn {
       setIsProcessing(true);
 
       try {
-        // send_message returns the agent's text response (string)
-        // Tool calls happen server-side in the agentic loop
         const content = await commands.sendMessage(sessionId, trimmed);
-
         addMessage({ role: "assistant", content });
 
-        // Refresh changes after each agent turn
         try {
           const changes = await commands.getChanges(sessionId);
           setChanges(changes);
@@ -49,5 +47,36 @@ export function useAgent(): UseAgentReturn {
     [sessionId, addMessage, setChanges],
   );
 
-  return { sendMessage, isProcessing };
+  const sendConfirmation = useCallback(
+    async (messageId: string) => {
+      if (!sessionId) return;
+
+      markActionTaken(messageId);
+      addMessage({ role: "user", content: "Go ahead", actionConfirmation: true });
+      setIsProcessing(true);
+
+      try {
+        const content = await commands.sendMessage(sessionId, "Go ahead");
+        addMessage({ role: "assistant", content });
+
+        try {
+          const changes = await commands.getChanges(sessionId);
+          setChanges(changes);
+        } catch {
+          // best-effort
+        }
+      } catch (err) {
+        console.error("Agent communication error:", err);
+        addMessage({
+          role: "system",
+          content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [sessionId, addMessage, markActionTaken, setChanges],
+  );
+
+  return { sendMessage, sendConfirmation, isProcessing };
 }
