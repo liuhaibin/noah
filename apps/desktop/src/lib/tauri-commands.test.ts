@@ -33,6 +33,7 @@ const MOCK_APPROVAL_REQUEST = {
   tool_name: "mac_kill_process",
   description: "Kill process 1234",
   parameters: { pid: 1234 },
+  reason: "Stop a frozen application that is using too much CPU",
 };
 
 const MOCK_SESSION_RECORD = {
@@ -74,12 +75,13 @@ describe("IPC contract: Rust → TypeScript", () => {
   });
 
   it("ApprovalRequest fields match Rust serialization", () => {
-    // Rust ApprovalRequest has: approval_id, tool_name, description, parameters
+    // Rust ApprovalRequest has: approval_id, tool_name, description, parameters, reason
     const requiredKeys = [
       "approval_id",
       "tool_name",
       "description",
       "parameters",
+      "reason",
     ];
     for (const key of requiredKeys) {
       expect(MOCK_APPROVAL_REQUEST).toHaveProperty(key);

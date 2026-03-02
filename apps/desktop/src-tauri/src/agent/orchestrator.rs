@@ -23,6 +23,8 @@ pub struct ApprovalRequest {
     pub tool_name: String,
     pub description: String,
     pub parameters: Value,
+    /// Plain-language reason from the LLM explaining why this action is needed.
+    pub reason: String,
 }
 
 /// A debug event emitted to the frontend for observability.
@@ -236,7 +238,7 @@ impl Orchestrator {
                 let tier_label = self
                     .router
                     .find_tool(&tool_name)
-                    .map(|t| format!("{:?}", t.safety_tier()))
+                    .map(|t| format!("{:?}", t.safety_tier_for_input(&tool_input)))
                     .unwrap_or_else(|| "unknown".to_string());
 
                 emit_debug(
@@ -315,12 +317,18 @@ impl Orchestrator {
             .find_tool(tool_name)
             .context(format!("Unknown tool: {}", tool_name))?;
 
-        let tier = tool.safety_tier();
+        let tier = tool.safety_tier_for_input(tool_input);
 
         // For NeedsApproval tools, request approval from the frontend.
         if tier == SafetyTier::NeedsApproval {
+            let reason = tool_input
+                .get("reason")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
             let approved = self
-                .request_approval(app_handle, tool_name, tool.description(), tool_input)
+                .request_approval(app_handle, tool_name, tool.description(), tool_input, &reason)
                 .await?;
 
             if !approved {
@@ -358,6 +366,7 @@ impl Orchestrator {
         tool_name: &str,
         description: &str,
         parameters: &Value,
+        reason: &str,
     ) -> Result<bool> {
         use tauri::Emitter;
 
@@ -376,6 +385,7 @@ impl Orchestrator {
             tool_name: tool_name.to_string(),
             description: description.to_string(),
             parameters: parameters.clone(),
+            reason: reason.to_string(),
         };
 
         app_handle
@@ -459,15 +469,16 @@ mod tests {
             tool_name: "mac_kill_process".to_string(),
             description: "Kill process 1234".to_string(),
             parameters: serde_json::json!({"pid": 1234}),
+            reason: "Stop a frozen application that is using too much CPU".to_string(),
         };
         let json = serde_json::to_value(&req).unwrap();
         let obj = json.as_object().unwrap();
 
-        // TS expects: { approval_id, tool_name, description, parameters }
-        for key in ["approval_id", "tool_name", "description", "parameters"] {
+        // TS expects: { approval_id, tool_name, description, parameters, reason }
+        for key in ["approval_id", "tool_name", "description", "parameters", "reason"] {
             assert!(obj.contains_key(key), "Missing expected key: {}", key);
         }
-        assert_eq!(obj.len(), 4, "Unexpected extra fields in ApprovalRequest");
+        assert_eq!(obj.len(), 5, "Unexpected extra fields in ApprovalRequest");
         // Must NOT have camelCase
         assert!(!obj.contains_key("approvalId"));
         assert!(!obj.contains_key("toolName"));

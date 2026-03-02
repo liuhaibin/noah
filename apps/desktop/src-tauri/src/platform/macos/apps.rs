@@ -251,7 +251,7 @@ impl Tool for MacClearAppCache {
     }
 
     fn safety_tier(&self) -> SafetyTier {
-        SafetyTier::NeedsApproval
+        SafetyTier::SafeAction
     }
 
     async fn execute(&self, input: &Value) -> Result<ToolResult> {
@@ -330,7 +330,7 @@ impl Tool for MacMoveFile {
     }
 
     fn description(&self) -> &str {
-        "Move or copy a file or directory. Requires user approval."
+        "Move or copy a file or directory."
     }
 
     fn input_schema(&self) -> Value {
@@ -357,7 +357,7 @@ impl Tool for MacMoveFile {
     }
 
     fn safety_tier(&self) -> SafetyTier {
-        SafetyTier::NeedsApproval
+        SafetyTier::SafeAction
     }
 
     async fn execute(&self, input: &Value) -> Result<ToolResult> {

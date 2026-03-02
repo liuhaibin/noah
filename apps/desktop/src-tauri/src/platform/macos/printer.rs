@@ -123,7 +123,7 @@ impl Tool for MacCancelPrintJobs {
     }
 
     fn safety_tier(&self) -> SafetyTier {
-        SafetyTier::NeedsApproval
+        SafetyTier::SafeAction
     }
 
     async fn execute(&self, _input: &Value) -> Result<ToolResult> {
@@ -163,7 +163,7 @@ impl Tool for MacRestartCups {
     }
 
     fn description(&self) -> &str {
-        "Restart the CUPS printing service. This can fix stuck print queues. Requires user approval."
+        "Restart the CUPS printing service. This can fix stuck print queues."
     }
 
     fn input_schema(&self) -> Value {
@@ -175,7 +175,7 @@ impl Tool for MacRestartCups {
     }
 
     fn safety_tier(&self) -> SafetyTier {
-        SafetyTier::NeedsApproval
+        SafetyTier::SafeAction
     }
 
     async fn execute(&self, _input: &Value) -> Result<ToolResult> {

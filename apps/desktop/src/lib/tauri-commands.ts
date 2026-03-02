@@ -16,6 +16,7 @@ export interface ApprovalRequest {
   tool_name: string;
   description: string;
   parameters: Record<string, unknown>;
+  reason: string;
 }
 
 export interface SessionInfo {

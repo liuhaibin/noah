@@ -231,7 +231,7 @@ impl Tool for MacKillProcess {
     }
 
     fn safety_tier(&self) -> SafetyTier {
-        SafetyTier::NeedsApproval
+        SafetyTier::SafeAction
     }
 
     async fn execute(&self, input: &Value) -> Result<ToolResult> {
@@ -286,7 +286,7 @@ impl Tool for MacClearCaches {
     }
 
     fn description(&self) -> &str {
-        "Clear the user's ~/Library/Caches/ directory to free disk space. Requires user approval."
+        "Clear the user's ~/Library/Caches/ directory to free disk space."
     }
 
     fn input_schema(&self) -> Value {
@@ -298,7 +298,7 @@ impl Tool for MacClearCaches {
     }
 
     fn safety_tier(&self) -> SafetyTier {
-        SafetyTier::NeedsApproval
+        SafetyTier::SafeAction
     }
 
     async fn execute(&self, _input: &Value) -> Result<ToolResult> {
