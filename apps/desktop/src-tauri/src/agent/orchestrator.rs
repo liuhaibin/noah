@@ -574,6 +574,30 @@ mod tests {
         assert!(!found);
     }
 
+    // ── Stage 0 tests ──
+
+    #[test]
+    fn test_cancel_flag_starts_false() {
+        let orch = test_orchestrator();
+        assert!(!orch.cancelled.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_cancel_sets_flag() {
+        let orch = test_orchestrator();
+        orch.cancel();
+        assert!(orch.cancelled.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_cancelled_flag_is_shared() {
+        let orch = test_orchestrator();
+        let flag = orch.cancelled_flag();
+        assert!(!flag.load(Ordering::SeqCst));
+        orch.cancel();
+        assert!(flag.load(Ordering::SeqCst));
+    }
+
     #[test]
     fn test_approval_request_json_keys() {
         // Ensures the JSON keys match the TS ApprovalRequest interface.
