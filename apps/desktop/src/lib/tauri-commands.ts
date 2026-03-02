@@ -42,6 +42,17 @@ export interface MessageRecord {
   timestamp: string;
 }
 
+export interface Artifact {
+  id: string;
+  category: string;
+  title: string;
+  content: string;
+  source: string;
+  session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Tauri Command Wrappers ──
 
 export async function createSession(): Promise<SessionInfo> {
@@ -94,4 +105,15 @@ export async function hasApiKey(): Promise<boolean> {
 
 export async function setApiKey(apiKey: string): Promise<void> {
   await invoke<void>("set_api_key", { apiKey });
+}
+
+export async function listArtifacts(
+  search?: string,
+  category?: string,
+): Promise<Artifact[]> {
+  return await invoke<Artifact[]>("list_artifacts", { search, category });
+}
+
+export async function deleteArtifact(artifactId: string): Promise<void> {
+  await invoke<void>("delete_artifact", { artifactId });
 }

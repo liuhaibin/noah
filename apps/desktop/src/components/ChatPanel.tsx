@@ -382,6 +382,9 @@ const TOOL_HUMAN_NAMES: Record<string, string> = {
   win_startup_programs: "Checking startup programs",
   win_service_list: "Listing services",
   win_restart_service: "Restarting service",
+  // Knowledge artifacts
+  save_artifact: "Saving knowledge",
+  query_artifacts: "Recalling knowledge",
 };
 
 function humanizeToolCall(summary: string): string {

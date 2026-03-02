@@ -73,7 +73,19 @@ pub fn init_db(path: &str) -> Result<Connection> {
             timestamp   TEXT NOT NULL
         );
 
-        CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);",
+        CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
+
+        CREATE TABLE IF NOT EXISTS artifacts (
+            id          TEXT PRIMARY KEY,
+            category    TEXT NOT NULL,
+            title       TEXT NOT NULL,
+            content     TEXT NOT NULL,
+            source      TEXT NOT NULL DEFAULT 'agent',
+            session_id  TEXT,
+            created_at  TEXT NOT NULL,
+            updated_at  TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_artifacts_category ON artifacts(category);",
     )
     .context("Failed to create database tables")?;
 

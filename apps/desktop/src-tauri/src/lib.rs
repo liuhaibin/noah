@@ -1,4 +1,5 @@
 mod agent;
+mod artifacts;
 mod commands;
 mod machine_context;
 mod platform;
@@ -64,9 +65,16 @@ pub fn run() {
             )
             .expect("Failed to initialise journal database");
 
+            // Wrap DB in Arc<Mutex<>> early so tools can share it.
+            let db_arc = Arc::new(Mutex::new(db));
+
             // Build the tool router and register platform tools.
             let mut router = ToolRouter::new();
             platform::register_platform_tools(&mut router);
+
+            // Register knowledge artifact tools.
+            router.register(Box::new(artifacts::SaveArtifactTool::new(db_arc.clone())));
+            router.register(Box::new(artifacts::QueryArtifactsTool::new(db_arc.clone())));
 
             // Load API key: config file first, then env var.
             let api_key = load_api_key(&app_dir);
@@ -81,13 +89,13 @@ pub fn run() {
 
             // Build the orchestrator.
             let orchestrator =
-                Orchestrator::new(llm, router, os_context, pending_approvals.clone());
+                Orchestrator::new(llm, router, os_context, pending_approvals.clone(), db_arc.clone());
 
             // Manage shared state.
             app.manage(AppState {
                 orchestrator: Mutex::new(orchestrator),
                 pending_approvals,
-                db: Arc::new(Mutex::new(db)),
+                db: db_arc,
                 app_dir,
             });
 
@@ -106,6 +114,8 @@ pub fn run() {
             commands::safety::undo_change,
             commands::settings::has_api_key,
             commands::settings::set_api_key,
+            commands::artifacts::list_artifacts,
+            commands::artifacts::delete_artifact,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

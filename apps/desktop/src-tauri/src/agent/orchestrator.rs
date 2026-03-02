@@ -14,6 +14,7 @@ use crate::agent::llm_client::{
 };
 use crate::agent::prompts;
 use crate::agent::tool_router::ToolRouter;
+use crate::artifacts;
 use crate::safety::journal;
 
 /// A pending approval that the frontend must accept or deny.
@@ -62,6 +63,7 @@ pub struct Orchestrator {
     /// Pending approval channels: approval_id -> oneshot sender (true = approved).
     pending_approvals: PendingApprovals,
     os_context: String,
+    db: Arc<Mutex<rusqlite::Connection>>,
 }
 
 pub type PendingApprovals = Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>;
@@ -72,6 +74,7 @@ impl Orchestrator {
         router: ToolRouter,
         os_context: String,
         pending_approvals: PendingApprovals,
+        db: Arc<Mutex<rusqlite::Connection>>,
     ) -> Self {
         Self {
             llm,
@@ -79,6 +82,7 @@ impl Orchestrator {
             sessions: HashMap::new(),
             pending_approvals,
             os_context,
+            db,
         }
     }
 
@@ -155,7 +159,11 @@ impl Orchestrator {
             });
         }
 
-        let system = prompts::system_prompt(&self.os_context);
+        let artifacts_ctx = {
+            let conn = self.db.lock().await;
+            artifacts::artifacts_for_prompt(&conn).unwrap_or_default()
+        };
+        let system = prompts::system_prompt(&self.os_context, &artifacts_ctx);
         let tool_defs = self.router.tool_definitions();
 
         // Agentic loop: keep calling the LLM until we get a text-only response.
@@ -421,11 +429,13 @@ mod tests {
     fn test_orchestrator() -> Orchestrator {
         let llm = LlmClient::new(String::new());
         let router = ToolRouter::new();
+        let conn = crate::safety::journal::init_db(":memory:").expect("Failed to init test DB");
         Orchestrator::new(
             llm,
             router,
             "test context".to_string(),
             Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(conn)),
         )
     }
 

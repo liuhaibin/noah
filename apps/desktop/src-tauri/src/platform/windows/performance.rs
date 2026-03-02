@@ -32,22 +32,25 @@ impl Tool for WinSystemInfo {
     }
 
     async fn execute(&self, _input: &Value) -> Result<ToolResult> {
+        // Use Win32_OperatingSystem.Caption for OS name — Get-ComputerInfo's
+        // WindowsProductName is broken on Windows 11 (reports "Windows 10").
         let info = Command::new("powershell")
             .args([
                 "-NoProfile", "-Command",
-                "Get-ComputerInfo | Select-Object \
-                    CsName, \
-                    WindowsProductName, \
-                    WindowsVersion, \
-                    OsBuildNumber, \
-                    CsProcessors, \
-                    CsNumberOfLogicalProcessors, \
-                    OsTotalVisibleMemorySize \
-                | Format-List",
+                "$os = Get-CimInstance Win32_OperatingSystem; \
+                $cpu = Get-CimInstance Win32_Processor; \
+                $cs = Get-CimInstance Win32_ComputerSystem; \
+                \"CsName           : $($cs.Name)\"; \
+                \"OS                : $($os.Caption)\"; \
+                \"Version           : $($os.Version)\"; \
+                \"Build             : $($os.BuildNumber)\"; \
+                \"CPU               : $($cpu.Name)\"; \
+                \"LogicalProcessors : $($cpu.NumberOfLogicalProcessors)\"; \
+                \"Memory            : $([math]::Round($os.TotalVisibleMemorySize / 1MB, 1)) GB\"",
             ])
             .output()
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .unwrap_or_else(|e| format!("Get-ComputerInfo failed: {}", e));
+            .unwrap_or_else(|e| format!("System info query failed: {}", e));
 
         let output = format!("=== Windows System Info ===\n{}", info);
 
