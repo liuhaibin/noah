@@ -441,6 +441,71 @@ function ThinkingIndicator() {
   );
 }
 
+// ── Onboarding Suggestion Cards ──
+
+const SUGGESTIONS = [
+  { icon: "\uD83C\uDF10", label: "My internet is slow", description: "Diagnose network issues" },
+  { icon: "\uD83D\uDC22", label: "My computer feels sluggish", description: "Check performance" },
+  { icon: "\uD83D\uDCA5", label: "A program keeps crashing", description: "Find the cause" },
+  { icon: "\uD83D\uDDA8\uFE0F", label: "Set up my printer", description: "Fix printing problems" },
+];
+
+function SuggestionCards({
+  onSelect,
+  disabled,
+}: {
+  onSelect: (text: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-text-muted">
+      <div className="w-16 h-16 rounded-2xl bg-accent-green/10 border border-accent-green/20 flex items-center justify-center mb-4">
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 28 28"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M18 4a7 7 0 0 0-7.8 1.7L14 9.6l-1 2.8-2.8 1L6.3 9.5A7 7 0 0 0 8 17.3l7.8 7.8a1.7 1.7 0 0 0 2.4 0l6-6a1.7 1.7 0 0 0 0-2.4L18 4Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            fill="none"
+            opacity="0.5"
+          />
+        </svg>
+      </div>
+      <p className="text-sm font-medium text-text-primary mb-1">
+        What can I help with?
+      </p>
+      <p className="text-xs text-text-muted mb-5">
+        Try one of these, or type anything below.
+      </p>
+      <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm">
+        {SUGGESTIONS.map((s) => (
+          <button
+            key={s.label}
+            onClick={() => onSelect(s.label)}
+            disabled={disabled}
+            className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl border border-border-primary bg-bg-secondary hover:bg-bg-tertiary hover:border-border-focus transition-all text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="text-base mt-0.5">{s.icon}</span>
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-text-primary leading-snug">
+                {s.label}
+              </div>
+              <div className="text-[10px] text-text-muted mt-0.5">
+                {s.description}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Chat Panel ──
 
 export function ChatPanel() {
@@ -522,25 +587,21 @@ export function ChatPanel() {
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-text-muted">
-            <div className="w-16 h-16 rounded-2xl bg-accent-green/10 border border-accent-green/20 flex items-center justify-center mb-4">
-              <svg
-                width="28"
-                height="28"
-                viewBox="0 0 28 28"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M18 4a7 7 0 0 0-7.8 1.7L14 9.6l-1 2.8-2.8 1L6.3 9.5A7 7 0 0 0 8 17.3l7.8 7.8a1.7 1.7 0 0 0 2.4 0l6-6a1.7 1.7 0 0 0 0-2.4L18 4Z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  fill="none"
-                  opacity="0.5"
-                />
-              </svg>
-            </div>
-            <p className="text-sm">Starting up...</p>
+          <SuggestionCards
+            onSelect={(text) => sendMessage(text)}
+            disabled={isProcessing}
+          />
+        ) : messages.length === 1 && messages[0].role === "system" ? (
+          <div className="max-w-2xl mx-auto space-y-4">
+            <MessageDisplay
+              message={messages[0]}
+              isProcessing={isProcessing}
+              onConfirm={sendConfirmation}
+            />
+            <SuggestionCards
+              onSelect={(text) => sendMessage(text)}
+              disabled={isProcessing}
+            />
           </div>
         ) : (
           <div className="max-w-2xl mx-auto space-y-3">
