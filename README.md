@@ -1,4 +1,4 @@
-# Noah
+# Noah 🔧
 
 **Your friendly computer helper.** Noah is an open-source desktop app that diagnoses and fixes computer problems for you. Just describe what's wrong in plain English, and Noah will figure out the situation, tell you what he's going to do, and do it — with one click.
 
@@ -15,7 +15,7 @@ Built for people who aren't "computer people." Think: small business owners, you
 
 No tickets. No waiting. No confusing menus.
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
@@ -24,7 +24,7 @@ No tickets. No waiting. No confusing menus.
 - **Rust** toolchain (install via [rustup.rs](https://rustup.rs))
 - An **Anthropic API key** (see below)
 
-### Bring Your Own API Key
+### 🔑 Bring Your Own API Key
 
 Noah uses Claude (by Anthropic) to think through your problems. You'll need your own API key:
 
@@ -49,7 +49,7 @@ That's it. Your key stays on your machine — Noah never sends it anywhere excep
 ### Install & Run
 
 ```bash
-git clone https://github.com/anthropics/noah.git
+git clone https://github.com/xuy/noah.git
 cd noah
 pnpm install
 ./run_mac.sh
@@ -71,7 +71,7 @@ pnpm build
 
 This creates a native `.app` bundle via Tauri.
 
-## What Noah Can Do (macOS)
+## 🛠 What Noah Can Do (macOS)
 
 **Network issues**
 - Check Wi-Fi status, DNS, connectivity
@@ -96,7 +96,7 @@ This creates a native `.app` bundle via Tauri.
 - Run shell commands (safe ones auto-approved, dangerous ones ask you first)
 - System summary and health checks
 
-## Safety
+## 🛡 Safety
 
 Noah is careful:
 
@@ -142,7 +142,7 @@ pnpm test
 
 This runs both Rust (`cargo test`) and frontend (`vitest`) test suites.
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 apps/desktop/
