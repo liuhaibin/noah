@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { useSessionStore } from "../stores/sessionStore";
+import { useChatStore } from "../stores/chatStore";
 import * as commands from "../lib/tauri-commands";
-import type { SessionRecord, ChangeEntry } from "../lib/tauri-commands";
+import type { SessionRecord } from "../lib/tauri-commands";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -36,33 +37,19 @@ function formatDuration(created: string, ended: string | null): string {
   return `${minutes}m ${seconds}s`;
 }
 
-function SessionItem({ session }: { session: SessionRecord }) {
+function SessionItem({
+  session,
+  onSelect,
+}: {
+  session: SessionRecord;
+  onSelect: (sessionId: string) => void;
+}) {
   const isActive = !session.ended_at;
-  const [expanded, setExpanded] = useState(false);
-  const [changes, setChanges] = useState<ChangeEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const handleClick = useCallback(async () => {
-    const willExpand = !expanded;
-    setExpanded(willExpand);
-
-    if (willExpand && changes.length === 0) {
-      setLoading(true);
-      try {
-        const result = await commands.getChanges(session.id);
-        setChanges(result);
-      } catch (err) {
-        console.error("Failed to load session changes:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-  }, [expanded, changes.length, session.id]);
 
   return (
     <div className="border-b border-border-primary last:border-b-0">
       <button
-        onClick={handleClick}
+        onClick={() => onSelect(session.id)}
         className="w-full px-4 py-3 text-left hover:bg-bg-tertiary/50 transition-colors cursor-pointer"
       >
         <div className="flex items-start justify-between gap-2">
@@ -107,7 +94,7 @@ function SessionItem({ session }: { session: SessionRecord }) {
               viewBox="0 0 10 10"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              className={`text-text-muted transition-transform ${expanded ? "rotate-90" : ""}`}
+              className="text-text-muted"
             >
               <path
                 d="M3 1.5L7 5L3 8.5"
@@ -120,37 +107,6 @@ function SessionItem({ session }: { session: SessionRecord }) {
           </div>
         </div>
       </button>
-
-      {/* Expanded detail */}
-      {expanded && (
-        <div className="px-4 pb-3">
-          {loading ? (
-            <p className="text-[10px] text-text-muted py-1">Loading...</p>
-          ) : changes.length === 0 ? (
-            <p className="text-[10px] text-text-muted py-1">
-              No changes were made in this session.
-            </p>
-          ) : (
-            <div className="space-y-1.5">
-              {changes.map((change) => (
-                <div
-                  key={change.id}
-                  className={`flex items-start gap-2 ${change.undone ? "opacity-50" : ""}`}
-                >
-                  <span className="px-1.5 py-0.5 rounded bg-accent-purple/15 text-accent-purple text-[10px] font-mono flex-shrink-0 mt-0.5">
-                    {change.tool_name}
-                  </span>
-                  <span
-                    className={`text-xs text-text-secondary leading-relaxed ${change.undone ? "line-through" : ""}`}
-                  >
-                    {change.description}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -160,6 +116,9 @@ export function SessionHistory() {
   const setHistoryOpen = useSessionStore((s) => s.setHistoryOpen);
   const pastSessions = useSessionStore((s) => s.pastSessions);
   const setPastSessions = useSessionStore((s) => s.setPastSessions);
+  const viewPastSession = useSessionStore((s) => s.viewPastSession);
+  const messages = useChatStore((s) => s.messages);
+  const setMessages = useChatStore((s) => s.setMessages);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -169,6 +128,25 @@ export function SessionHistory() {
       console.error("Failed to load session history:", err);
     }
   }, [setPastSessions]);
+
+  const handleSelectSession = useCallback(
+    async (sessionId: string) => {
+      try {
+        const records = await commands.getSessionMessages(sessionId);
+        const loaded = records.map((r) => ({
+          id: r.id,
+          role: r.role as "user" | "assistant" | "system",
+          content: r.content,
+          timestamp: new Date(r.timestamp).getTime(),
+        }));
+        viewPastSession(sessionId, messages);
+        setMessages(loaded);
+      } catch (err) {
+        console.error("Failed to load session messages:", err);
+      }
+    },
+    [viewPastSession, messages, setMessages],
+  );
 
   // Load sessions when panel opens.
   useEffect(() => {
@@ -250,7 +228,11 @@ export function SessionHistory() {
           ) : (
             <div>
               {pastSessions.map((session) => (
-                <SessionItem key={session.id} session={session} />
+                <SessionItem
+                  key={session.id}
+                  session={session}
+                  onSelect={handleSelectSession}
+                />
               ))}
             </div>
           )}

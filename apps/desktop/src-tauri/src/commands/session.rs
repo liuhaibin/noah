@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::safety::journal::{self, SessionRecord};
+use crate::safety::journal::{self, MessageRecord, SessionRecord};
 use crate::AppState;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -81,6 +81,16 @@ pub async fn end_session(
 pub async fn list_sessions(state: State<'_, AppState>) -> Result<Vec<SessionRecord>, String> {
     let conn = state.db.lock().await;
     journal::list_sessions(&conn).map_err(|e| format!("Failed to list sessions: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_session_messages(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<Vec<MessageRecord>, String> {
+    let conn = state.db.lock().await;
+    journal::get_messages(&conn, &session_id)
+        .map_err(|e| format!("Failed to load messages: {}", e))
 }
 
 #[cfg(test)]

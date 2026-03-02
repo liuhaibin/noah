@@ -18,6 +18,16 @@ pub struct JournalEntry {
     pub undone: bool,
 }
 
+/// A persisted chat message for session history replay.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageRecord {
+    pub id: String,
+    pub session_id: String,
+    pub role: String,
+    pub content: String,
+    pub timestamp: String,
+}
+
 /// A persisted session record for the session history list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionRecord {
@@ -53,7 +63,17 @@ pub fn init_db(path: &str) -> Result<Connection> {
             ended_at      TEXT,
             title         TEXT,
             message_count INTEGER NOT NULL DEFAULT 0
-        );",
+        );
+
+        CREATE TABLE IF NOT EXISTS messages (
+            id          TEXT PRIMARY KEY,
+            session_id  TEXT NOT NULL,
+            role        TEXT NOT NULL,
+            content     TEXT NOT NULL,
+            timestamp   TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);",
     )
     .context("Failed to create database tables")?;
 
@@ -181,6 +201,48 @@ pub fn end_session_record(conn: &Connection, id: &str, ended_at: &str, message_c
     Ok(())
 }
 
+// ── Message persistence ────────────────────────────────────────────────
+
+/// Save a display message (user or assistant text) for session history replay.
+pub fn save_message(conn: &Connection, session_id: &str, role: &str, content: &str) -> Result<()> {
+    let id = Uuid::new_v4().to_string();
+    let timestamp = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO messages (id, session_id, role, content, timestamp) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![id, session_id, role, content, timestamp],
+    )
+    .context("Failed to insert message")?;
+    Ok(())
+}
+
+/// Retrieve all display messages for a session, in chronological order.
+pub fn get_messages(conn: &Connection, session_id: &str) -> Result<Vec<MessageRecord>> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, session_id, role, content, timestamp
+             FROM messages
+             WHERE session_id = ?1
+             ORDER BY timestamp ASC",
+        )
+        .context("Failed to prepare get_messages query")?;
+
+    let records = stmt
+        .query_map(rusqlite::params![session_id], |row| {
+            Ok(MessageRecord {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                role: row.get(2)?,
+                content: row.get(3)?,
+                timestamp: row.get(4)?,
+            })
+        })
+        .context("Failed to execute get_messages query")?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .context("Failed to collect message records")?;
+
+    Ok(records)
+}
+
 /// List all sessions, most recent first. Includes change_count from the journal table.
 pub fn list_sessions(conn: &Connection) -> Result<Vec<SessionRecord>> {
     let mut stmt = conn
@@ -193,6 +255,7 @@ pub fn list_sessions(conn: &Connection) -> Result<Vec<SessionRecord>> {
                  FROM journal
                  GROUP BY session_id
              ) j ON j.session_id = s.id
+             WHERE s.message_count > 0
              ORDER BY s.created_at DESC",
         )
         .context("Failed to prepare list_sessions query")?;
@@ -293,6 +356,9 @@ mod tests {
         let conn = test_db();
         create_session_record(&conn, "s1", "2026-01-01T00:00:00Z").unwrap();
         create_session_record(&conn, "s2", "2026-01-02T00:00:00Z").unwrap();
+        // Sessions with 0 messages are filtered out; give them messages.
+        update_session_message_count(&conn, "s1", 1).unwrap();
+        update_session_message_count(&conn, "s2", 2).unwrap();
 
         let sessions = list_sessions(&conn).unwrap();
         assert_eq!(sessions.len(), 2);
@@ -301,8 +367,21 @@ mod tests {
         assert_eq!(sessions[1].id, "s1");
         assert!(sessions[0].ended_at.is_none());
         assert!(sessions[0].title.is_none());
-        assert_eq!(sessions[0].message_count, 0);
+        assert_eq!(sessions[0].message_count, 2);
         assert_eq!(sessions[0].change_count, 0);
+    }
+
+    #[test]
+    fn test_empty_sessions_filtered_from_list() {
+        let conn = test_db();
+        create_session_record(&conn, "s1", "2026-01-01T00:00:00Z").unwrap();
+        create_session_record(&conn, "s2", "2026-01-02T00:00:00Z").unwrap();
+        // Only s2 has messages; s1 should be filtered out.
+        update_session_message_count(&conn, "s2", 3).unwrap();
+
+        let sessions = list_sessions(&conn).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].id, "s2");
     }
 
     #[test]
@@ -326,6 +405,7 @@ mod tests {
     fn test_session_title_only_sets_once() {
         let conn = test_db();
         create_session_record(&conn, "s1", "2026-01-01T00:00:00Z").unwrap();
+        update_session_message_count(&conn, "s1", 2).unwrap();
 
         update_session_title(&conn, "s1", "First message").unwrap();
         update_session_title(&conn, "s1", "Second message").unwrap();
@@ -338,6 +418,7 @@ mod tests {
     fn test_session_change_count_from_journal() {
         let conn = test_db();
         create_session_record(&conn, "s1", "2026-01-01T00:00:00Z").unwrap();
+        update_session_message_count(&conn, "s1", 1).unwrap();
 
         let change = ChangeRecord {
             description: "test".to_string(),

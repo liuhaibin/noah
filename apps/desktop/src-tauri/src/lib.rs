@@ -132,6 +132,7 @@ pub fn run() {
             commands::session::get_session,
             commands::session::end_session,
             commands::session::list_sessions,
+            commands::session::get_session_messages,
             commands::agent::send_message,
             commands::agent::approve_action,
             commands::agent::deny_action,

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useChatStore } from "../stores/chatStore";
+import { useSessionStore } from "../stores/sessionStore";
 import type { Message, ToolCall } from "../stores/chatStore";
 import { useAgent } from "../hooks/useAgent";
 import { VoiceButton } from "./VoiceButton";
@@ -414,11 +415,28 @@ function ThinkingIndicator() {
 
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
+  const setMessages = useChatStore((s) => s.setMessages);
+  const viewingPastSession = useSessionStore((s) => s.viewingPastSession);
+  const returnToCurrentSession = useSessionStore(
+    (s) => s.returnToCurrentSession,
+  );
+  const pastSessions = useSessionStore((s) => s.pastSessions);
   const { sendMessage, sendConfirmation, isProcessing } = useAgent();
 
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleBackToCurrent = useCallback(() => {
+    const saved = returnToCurrentSession();
+    if (saved) {
+      setMessages(saved);
+    }
+  }, [returnToCurrentSession, setMessages]);
+
+  const viewingSession = viewingPastSession
+    ? pastSessions.find((s) => s.id === viewingPastSession)
+    : null;
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -455,6 +473,22 @@ export function ChatPanel() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      {/* Past session banner */}
+      {viewingPastSession && (
+        <div className="flex items-center justify-between px-4 py-2 bg-accent-purple/10 border-b border-accent-purple/20">
+          <span className="text-xs text-text-secondary">
+            Viewing past session
+            {viewingSession?.title ? `: ${viewingSession.title}` : ""}
+          </span>
+          <button
+            onClick={handleBackToCurrent}
+            className="text-xs text-accent-green font-medium hover:underline cursor-pointer"
+          >
+            Back to current session
+          </button>
+        </div>
+      )}
+
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
@@ -494,55 +528,57 @@ export function ChatPanel() {
         )}
       </div>
 
-      {/* Input area */}
-      <div className="border-t border-border-primary bg-bg-secondary px-4 py-3">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-end gap-2 bg-bg-input rounded-xl border border-border-primary focus-within:border-border-focus transition-colors">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Tell Noah what you need help with..."
-              rows={1}
-              disabled={isProcessing}
-              className="flex-1 bg-transparent text-sm text-text-primary placeholder-text-muted px-4 py-2.5 resize-none outline-none min-h-[38px] max-h-[120px]"
-            />
-            <div className="flex items-center gap-1 pr-2 pb-1.5">
-              <VoiceButton onTranscript={handleVoiceTranscript} />
-              <button
-                onClick={handleSubmit}
-                disabled={!input.trim() || isProcessing}
-                className={`
-                  flex items-center justify-center w-9 h-9 rounded-lg
-                  transition-all duration-200 cursor-pointer
-                  ${
-                    input.trim() && !isProcessing
-                      ? "bg-accent-blue text-white hover:bg-accent-blue/80"
-                      : "text-text-muted cursor-not-allowed"
-                  }
-                `}
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
+      {/* Input area — hidden when viewing past session */}
+      {!viewingPastSession && (
+        <div className="border-t border-border-primary bg-bg-secondary px-4 py-3">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-end gap-2 bg-bg-input rounded-xl border border-border-primary focus-within:border-border-focus transition-colors">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Tell Noah what you need help with..."
+                rows={1}
+                disabled={isProcessing}
+                className="flex-1 bg-transparent text-sm text-text-primary placeholder-text-muted px-4 py-2.5 resize-none outline-none min-h-[38px] max-h-[120px]"
+              />
+              <div className="flex items-center gap-1 pr-2 pb-1.5">
+                <VoiceButton onTranscript={handleVoiceTranscript} />
+                <button
+                  onClick={handleSubmit}
+                  disabled={!input.trim() || isProcessing}
+                  className={`
+                    flex items-center justify-center w-9 h-9 rounded-lg
+                    transition-all duration-200 cursor-pointer
+                    ${
+                      input.trim() && !isProcessing
+                        ? "bg-accent-blue text-white hover:bg-accent-blue/80"
+                        : "text-text-muted cursor-not-allowed"
+                    }
+                  `}
                 >
-                  <path
-                    d="M2 8L14 2L8 14V8H2Z"
-                    fill="currentColor"
-                  />
-                </svg>
-              </button>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M2 8L14 2L8 14V8H2Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
+            <p className="text-[10px] text-text-muted mt-1.5 text-center">
+              Press Enter to send, Shift+Enter for new line
+            </p>
           </div>
-          <p className="text-[10px] text-text-muted mt-1.5 text-center">
-            Press Enter to send, Shift+Enter for new line
-          </p>
         </div>
-      </div>
+      )}
     </div>
   );
 }

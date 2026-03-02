@@ -10,11 +10,13 @@ pub async fn send_message(
     session_id: String,
     message: String,
 ) -> Result<String, String> {
-    // Set the session title from the first user message (best-effort).
+    // Set the session title from the first user message (best-effort)
+    // and persist the user message for session history replay.
     {
         let title: String = message.chars().take(100).collect();
         let conn = state.db.lock().await;
         let _ = journal::update_session_title(&conn, &session_id, &title);
+        let _ = journal::save_message(&conn, &session_id, "user", &message);
     }
 
     let mut orchestrator = state.orchestrator.lock().await;
@@ -24,7 +26,11 @@ pub async fn send_message(
         .await
         .map_err(|e| format!("Agent error: {}", e))?;
 
-    // Update message count after processing.
+    // Persist the assistant response and update message count.
+    {
+        let conn = state.db.lock().await;
+        let _ = journal::save_message(&conn, &session_id, "assistant", &result);
+    }
     if let Some(session) = orchestrator.get_session(&session_id) {
         let count = session.messages.len() as i32;
         let conn = state.db.lock().await;

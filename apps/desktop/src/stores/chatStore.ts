@@ -21,6 +21,7 @@ export interface Message {
 interface ChatState {
   messages: Message[];
   addMessage: (msg: Omit<Message, "id" | "timestamp">) => void;
+  setMessages: (msgs: Message[]) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
   updateToolCall: (
     messageId: string,
@@ -52,6 +53,8 @@ export const useChatStore = create<ChatState>((set) => ({
         },
       ],
     })),
+
+  setMessages: (msgs) => set({ messages: msgs }),
 
   updateMessage: (id, updates) =>
     set((state) => ({
