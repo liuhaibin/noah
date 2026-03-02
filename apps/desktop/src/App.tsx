@@ -65,10 +65,10 @@ function MainApp() {
     };
   }, [addEvent]);
 
-  // Cmd+D keyboard shortcut to toggle debug panel.
+  // Cmd+D / Ctrl+D keyboard shortcut to toggle debug panel.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === "d") {
+      if ((e.metaKey || e.ctrlKey) && e.key === "d") {
         e.preventDefault();
         toggle();
       }
