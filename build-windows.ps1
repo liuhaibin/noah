@@ -11,10 +11,12 @@ git pull
 Write-Host "==> Building..."
 node scripts/release.mjs --build
 
+# Read version from tauri.conf.json
+$conf = Get-Content apps\desktop\src-tauri\tauri.conf.json | ConvertFrom-Json
+$v = $conf.version
+
 Write-Host ""
-Write-Host "==> Done! Artifacts are in target\release\bundle\"
-Write-Host "To get them from Mac:"
-Write-Host "  scp xulea@100.87.199.115:C:/Users/xulea/src/itman/target/release/bundle/nsis/*.exe ."
-Write-Host "  scp xulea@100.87.199.115:C:/Users/xulea/src/itman/target/release/bundle/msi/*.msi ."
-Write-Host "Then upload:"
-Write-Host "  gh release upload vX.Y.Z Noah_*.exe Noah_*.msi --clobber"
+Write-Host "==> Done! From Mac, run:"
+Write-Host "  scp xulea@100.87.199.115:C:/Users/xulea/src/itman/target/release/bundle/nsis/Noah_${v}_x64-setup.exe /tmp/"
+Write-Host "  scp xulea@100.87.199.115:C:/Users/xulea/src/itman/target/release/bundle/msi/Noah_${v}_x64_en-US.msi /tmp/"
+Write-Host "  gh release upload v${v} /tmp/Noah_${v}_x64-setup.exe /tmp/Noah_${v}_x64_en-US.msi --clobber"
