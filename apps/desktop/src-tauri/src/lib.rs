@@ -114,6 +114,7 @@ pub fn run() {
             commands::session::list_sessions,
             commands::session::get_session_messages,
             commands::session::get_session_summary,
+            commands::session::export_session,
             commands::agent::send_message,
             commands::agent::approve_action,
             commands::agent::deny_action,

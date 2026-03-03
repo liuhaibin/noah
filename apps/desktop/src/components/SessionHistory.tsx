@@ -40,73 +40,103 @@ function formatDuration(created: string, ended: string | null): string {
 function SessionItem({
   session,
   onSelect,
+  onExport,
 }: {
   session: SessionRecord;
   onSelect: (sessionId: string) => void;
+  onExport: (sessionId: string, title: string) => void;
 }) {
   const isActive = !session.ended_at;
 
   return (
     <div className="border-b border-border-primary last:border-b-0">
-      <button
-        onClick={() => onSelect(session.id)}
-        className="w-full px-4 py-3 text-left hover:bg-bg-tertiary/50 transition-colors cursor-pointer"
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            {/* Title */}
-            <p className="text-sm text-text-primary leading-snug truncate">
-              {session.title || "Untitled session"}
-            </p>
-
-            {/* Meta row */}
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-[10px] text-text-muted">
-                {formatDate(session.created_at)}
-              </span>
-              <span className="text-[10px] text-text-muted">
-                {formatDuration(session.created_at, session.ended_at)}
-              </span>
-            </div>
-
-            {/* Stats */}
-            <div className="flex items-center gap-3 mt-1.5">
-              {session.message_count > 0 && (
+      <div className="flex items-center">
+        <button
+          onClick={() => onSelect(session.id)}
+          className="flex-1 px-4 py-3 text-left hover:bg-bg-tertiary/50 transition-colors cursor-pointer"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-text-primary leading-snug truncate">
+                {session.title || "Untitled session"}
+              </p>
+              <div className="flex items-center gap-2 mt-1">
                 <span className="text-[10px] text-text-muted">
-                  {session.message_count} msg{session.message_count !== 1 ? "s" : ""}
+                  {formatDate(session.created_at)}
                 </span>
-              )}
-              {session.change_count > 0 && (
-                <span className="text-[10px] text-accent-purple">
-                  {session.change_count} change{session.change_count !== 1 ? "s" : ""}
+                <span className="text-[10px] text-text-muted">
+                  {formatDuration(session.created_at, session.ended_at)}
                 </span>
+              </div>
+              <div className="flex items-center gap-3 mt-1.5">
+                {session.message_count > 0 && (
+                  <span className="text-[10px] text-text-muted">
+                    {session.message_count} msg
+                    {session.message_count !== 1 ? "s" : ""}
+                  </span>
+                )}
+                {session.change_count > 0 && (
+                  <span className="text-[10px] text-accent-purple">
+                    {session.change_count} change
+                    {session.change_count !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+              {isActive && (
+                <span className="w-2 h-2 rounded-full bg-status-active" />
               )}
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 10 10"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="text-text-muted"
+              >
+                <path
+                  d="M3 1.5L7 5L3 8.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 flex-shrink-0 mt-1">
-            {isActive && (
-              <span className="w-2 h-2 rounded-full bg-status-active" />
-            )}
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="text-text-muted"
-            >
-              <path
-                d="M3 1.5L7 5L3 8.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-        </div>
-      </button>
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onExport(session.id, session.title || "session");
+          }}
+          title="Export as Markdown"
+          className="px-2 py-3 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M7 2V10M7 10L4 7M7 10L10 7"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M2 12H12"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }
@@ -127,6 +157,27 @@ export function SessionHistory() {
       console.error("Failed to load session history:", err);
     }
   }, [setPastSessions]);
+
+  const handleExport = useCallback(
+    async (sessionId: string, title: string) => {
+      try {
+        const markdown = await commands.exportSession(sessionId);
+        // Create a download via a Blob URL
+        const blob = new Blob([markdown], { type: "text/markdown" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${title.replace(/[^a-zA-Z0-9 ]/g, "").replace(/\s+/g, "-").toLowerCase()}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Failed to export session:", err);
+      }
+    },
+    [],
+  );
 
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
@@ -235,6 +286,7 @@ export function SessionHistory() {
                   key={session.id}
                   session={session}
                   onSelect={handleSelectSession}
+                  onExport={handleExport}
                 />
               ))}
             </div>

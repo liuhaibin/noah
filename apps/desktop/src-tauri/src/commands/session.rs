@@ -131,6 +131,69 @@ pub async fn get_session_summary(
         .map_err(|e| format!("Failed to generate summary: {}", e))
 }
 
+#[tauri::command]
+pub async fn export_session(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<String, String> {
+    let conn = state.db.lock().await;
+
+    // Get session metadata
+    let sessions = journal::list_sessions(&conn)
+        .map_err(|e| format!("Failed to list sessions: {}", e))?;
+    let session = sessions.iter().find(|s| s.id == session_id);
+
+    let title = session
+        .and_then(|s| s.title.as_deref())
+        .unwrap_or("Untitled Session");
+    let created = session
+        .map(|s| s.created_at.as_str())
+        .unwrap_or("Unknown");
+
+    // Get messages
+    let messages = journal::get_messages(&conn, &session_id)
+        .map_err(|e| format!("Failed to load messages: {}", e))?;
+
+    // Get changes
+    let changes = journal::get_changes(&conn, &session_id)
+        .map_err(|e| format!("Failed to load changes: {}", e))?;
+
+    // Build markdown
+    let mut md = String::new();
+    md.push_str(&format!("# {}\n\n", title));
+    md.push_str(&format!("**Date:** {}\n\n", created));
+    md.push_str("---\n\n## Conversation\n\n");
+
+    for msg in &messages {
+        let role_label = match msg.role.as_str() {
+            "user" => "**You**",
+            "assistant" => "**Noah**",
+            "system" => "*System*",
+            _ => &msg.role,
+        };
+        md.push_str(&format!("{}: {}\n\n", role_label, msg.content));
+    }
+
+    if !changes.is_empty() {
+        md.push_str("---\n\n## Changes Made\n\n");
+        for change in &changes {
+            let status = if change.undone { " (undone)" } else { "" };
+            md.push_str(&format!(
+                "- **{}**: {}{}\n",
+                change.tool_name, change.description, status
+            ));
+        }
+        md.push_str("\n");
+    }
+
+    md.push_str(&format!(
+        "---\n\n*Exported from Noah v{}*\n",
+        env!("CARGO_PKG_VERSION")
+    ));
+
+    Ok(md)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
