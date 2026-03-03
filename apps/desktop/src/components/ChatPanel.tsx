@@ -154,6 +154,22 @@ function DoneCard({
 }) {
   const sessionId = useSessionStore((s) => s.sessionId);
   const [resolved, setResolved] = useState<boolean | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  // Load persisted resolution status on mount
+  useEffect(() => {
+    if (!sessionId || !isLatestDone) return;
+    commands
+      .listSessions()
+      .then((sessions) => {
+        const current = sessions.find((s) => s.id === sessionId);
+        if (current && current.resolved !== null) {
+          setResolved(current.resolved);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, [sessionId, isLatestDone]);
 
   const handleResolve = async (value: boolean) => {
     if (!sessionId) return;
@@ -188,8 +204,8 @@ function DoneCard({
           </div>
         </div>
 
-        {/* Resolution prompt — only on the latest done card */}
-        {isLatestDone && resolved === null && (
+        {/* Resolution prompt — only on the latest done card, after load */}
+        {isLatestDone && loaded && resolved === null && (
           <div className="flex items-center gap-2 mt-2 ml-1">
             <span className="text-[11px] text-text-muted">
               Did this fix your issue?
