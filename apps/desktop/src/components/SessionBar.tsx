@@ -11,9 +11,6 @@ interface SessionBarProps {
 
 export function SessionBar({ session }: SessionBarProps) {
   const { isActive, endSession, createSession } = session;
-  const toggleChangeLog = useSessionStore((s) => s.toggleChangeLog);
-  const changeLogOpen = useSessionStore((s) => s.changeLogOpen);
-  const changesCount = useSessionStore((s) => s.changes.length);
   const toggleHistory = useSessionStore((s) => s.toggleHistory);
   const historyOpen = useSessionStore((s) => s.historyOpen);
   const toggleSettings = useSessionStore((s) => s.toggleSettings);
@@ -32,12 +29,11 @@ export function SessionBar({ session }: SessionBarProps) {
         </span>
       </div>
 
-      {/* Right: All controls */}
+      {/* Right: Controls */}
       <div className="flex items-center gap-1">
-        {/* Navigation group */}
         <button
           onClick={toggleHistory}
-          title="Session history"
+          title="Past sessions"
           className={`
             flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs
             transition-colors duration-150 cursor-pointer
@@ -70,41 +66,6 @@ export function SessionBar({ session }: SessionBarProps) {
             />
           </svg>
           History
-        </button>
-
-        <button
-          onClick={toggleChangeLog}
-          title="Changes made this session"
-          className={`
-            flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs
-            transition-colors duration-150 cursor-pointer
-            ${
-              changeLogOpen
-                ? "bg-accent-green/20 text-accent-green"
-                : "text-text-secondary hover:text-text-primary hover:bg-bg-tertiary"
-            }
-          `}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M3 4H11M3 7H9M3 10H7"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-          Changes
-          {changesCount > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-accent-green text-[10px] text-white font-medium">
-              {changesCount}
-            </span>
-          )}
         </button>
 
         <button
