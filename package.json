@@ -4,6 +4,8 @@
   "scripts": {
     "dev": "pnpm --filter @itman/desktop tauri dev",
     "build": "pnpm --filter @itman/desktop tauri build",
-    "test": "cargo test && pnpm --filter @itman/desktop test"
+    "test": "cargo test && pnpm --filter @itman/desktop test",
+    "release:build": "node ./scripts/release.mjs --build",
+    "release:upload": "node ./scripts/release.mjs --upload"
   }
 }

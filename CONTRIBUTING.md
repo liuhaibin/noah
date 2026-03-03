@@ -23,10 +23,20 @@ Or on macOS: `./run_mac.sh`
 ### Build for production
 
 ```bash
+pnpm release:build
+```
+
+This produces platform installers (`.dmg` on macOS, `.msi`/`.exe` on Windows, Linux bundles on Linux).
+
+Shell wrappers are also available:
+
+```bash
 ./release.sh --build
 ```
 
-This produces a `.dmg` on macOS, `.msi`/`.exe` on Windows.
+```powershell
+.\release.ps1 -BuildOnly
+```
 
 ### Run tests
 
@@ -105,4 +115,12 @@ Version lives in 4 files — keep them in sync:
 - `apps/desktop/src-tauri/Cargo.toml`
 - `crates/itman-tools/Cargo.toml`
 
-Tag format: `v{VERSION}`. Use `./release.sh` to build + publish.
+Tag format: `v{VERSION}`.
+
+Cross-platform release commands:
+- Build locally only: `pnpm release:build`
+- Build + upload artifacts to GitHub Release: `pnpm release:upload`
+
+Equivalent shell wrappers:
+- Bash: `./release.sh --upload`
+- PowerShell: `.\release.ps1 -Upload`
