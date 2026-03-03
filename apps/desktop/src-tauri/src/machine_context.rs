@@ -179,11 +179,18 @@ impl MachineContext {
         serde_json::from_str(&data).ok()
     }
 
-    /// Save context to disk as pretty JSON. Silently fails (non-fatal).
+    /// Save context to disk as pretty JSON. Non-fatal, but logs a warning on failure.
     pub fn save(&self, app_dir: &Path) {
         let path = app_dir.join(CACHE_FILE);
-        if let Ok(json) = serde_json::to_string_pretty(self) {
-            let _ = std::fs::write(path, json);
+        match serde_json::to_string_pretty(self) {
+            Ok(json) => {
+                if let Err(e) = std::fs::write(&path, json) {
+                    eprintln!("[warn] Failed to save machine context cache: {}", e);
+                }
+            }
+            Err(e) => {
+                eprintln!("[warn] Failed to serialize machine context: {}", e);
+            }
         }
     }
 

@@ -25,7 +25,9 @@ pub async fn create_session(state: State<'_, AppState>) -> Result<SessionInfo, S
     // Persist the session record to the database.
     {
         let conn = state.db.lock().await;
-        let _ = journal::create_session_record(&conn, &id, &created_at);
+        if let Err(e) = journal::create_session_record(&conn, &id, &created_at) {
+            eprintln!("[warn] Failed to persist session record: {}", e);
+        }
     }
 
     Ok(SessionInfo {
@@ -71,7 +73,9 @@ pub async fn end_session(
     if removed {
         let ended_at = chrono::Utc::now().to_rfc3339();
         let conn = state.db.lock().await;
-        let _ = journal::end_session_record(&conn, &session_id, &ended_at, message_count);
+        if let Err(e) = journal::end_session_record(&conn, &session_id, &ended_at, message_count) {
+            eprintln!("[warn] Failed to persist session end: {}", e);
+        }
     }
 
     Ok(removed)

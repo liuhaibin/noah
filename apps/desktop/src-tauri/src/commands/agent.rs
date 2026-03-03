@@ -17,7 +17,9 @@ pub async fn send_message(
     // Persist the user message for session history replay.
     {
         let conn = state.db.lock().await;
-        let _ = journal::save_message(&conn, &session_id, "user", &message);
+        if let Err(e) = journal::save_message(&conn, &session_id, "user", &message) {
+            eprintln!("[warn] Failed to persist user message: {}", e);
+        }
     }
 
     // Check if this session needs a title (first message). If so, spawn a
@@ -38,7 +40,9 @@ pub async fn send_message(
         Some(tokio::spawn(async move {
             if let Ok(title) = llm.generate_title(&msg).await {
                 let conn = db.lock().await;
-                let _ = journal::update_session_title(&conn, &sid, &title);
+                if let Err(e) = journal::update_session_title(&conn, &sid, &title) {
+                    eprintln!("[warn] Failed to set session title: {}", e);
+                }
             }
         }))
     } else {
@@ -55,12 +59,16 @@ pub async fn send_message(
     // Persist the assistant response and update message count.
     {
         let conn = state.db.lock().await;
-        let _ = journal::save_message(&conn, &session_id, "assistant", &result);
+        if let Err(e) = journal::save_message(&conn, &session_id, "assistant", &result) {
+            eprintln!("[warn] Failed to persist assistant message: {}", e);
+        }
     }
     if let Some(session) = orchestrator.get_session(&session_id) {
         let count = session.messages.len() as i32;
         let conn = state.db.lock().await;
-        let _ = journal::update_session_message_count(&conn, &session_id, count);
+        if let Err(e) = journal::update_session_message_count(&conn, &session_id, count) {
+            eprintln!("[warn] Failed to update message count: {}", e);
+        }
     }
 
     // Wait for the title generation to finish (best-effort, don't fail the whole call).

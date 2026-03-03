@@ -233,8 +233,9 @@ impl Orchestrator {
                 let response_json =
                     serde_json::to_string(&response).unwrap_or_default();
                 let conn = self.db.lock().await;
-                let _ =
-                    journal::save_llm_trace(&conn, session_id, &request_json, &response_json);
+                if let Err(e) = journal::save_llm_trace(&conn, session_id, &request_json, &response_json) {
+                    eprintln!("[warn] Failed to save LLM trace: {}", e);
+                }
             }
 
             // Collect tool_use blocks and text blocks.
@@ -434,7 +435,9 @@ impl Orchestrator {
         if !tool_result.changes.is_empty() {
             let conn = db.lock().await;
             for change in &tool_result.changes {
-                let _ = journal::record_change(&conn, session_id, tool_name, change);
+                if let Err(e) = journal::record_change(&conn, session_id, tool_name, change) {
+                    eprintln!("[warn] Failed to record change in journal: {}", e);
+                }
             }
         }
 
