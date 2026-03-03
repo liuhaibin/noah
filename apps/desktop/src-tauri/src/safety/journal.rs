@@ -39,10 +39,15 @@ pub struct SessionRecord {
     pub change_count: i32,
 }
 
-/// Initialise the journal database, creating tables if they don't exist.
+/// Current schema version. Increment when adding migrations.
+const SCHEMA_VERSION: i32 = 2;
+
+/// Initialise the journal database, creating tables if they don't exist,
+/// then run any pending migrations.
 pub fn init_db(path: &str) -> Result<Connection> {
     let conn = Connection::open(path).context("Failed to open journal database")?;
 
+    // Create base tables (idempotent via IF NOT EXISTS).
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS journal (
             id          TEXT PRIMARY KEY,
@@ -96,14 +101,6 @@ pub fn init_db(path: &str) -> Result<Connection> {
         );
         CREATE INDEX IF NOT EXISTS idx_artifacts_category ON artifacts(category);
 
-        CREATE TABLE IF NOT EXISTS telemetry_events (
-            id          TEXT PRIMARY KEY,
-            event_type  TEXT NOT NULL,
-            data        TEXT NOT NULL DEFAULT '{}',
-            timestamp   TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_telemetry_ts ON telemetry_events(timestamp);
-
         CREATE TABLE IF NOT EXISTS settings (
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -111,7 +108,59 @@ pub fn init_db(path: &str) -> Result<Connection> {
     )
     .context("Failed to create database tables")?;
 
+    // Run migrations based on current schema version.
+    run_migrations(&conn)?;
+
     Ok(conn)
+}
+
+fn get_schema_version(conn: &Connection) -> i32 {
+    conn.query_row(
+        "SELECT value FROM settings WHERE key = 'schema_version'",
+        [],
+        |row| row.get::<_, String>(0),
+    )
+    .ok()
+    .and_then(|v| v.parse::<i32>().ok())
+    .unwrap_or(0)
+}
+
+fn set_schema_version(conn: &Connection, version: i32) -> Result<()> {
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', ?1)",
+        rusqlite::params![version.to_string()],
+    )
+    .context("Failed to set schema version")?;
+    Ok(())
+}
+
+fn run_migrations(conn: &Connection) -> Result<()> {
+    let current = get_schema_version(conn);
+
+    if current < 1 {
+        // Migration 1: Add telemetry_events table
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS telemetry_events (
+                id          TEXT PRIMARY KEY,
+                event_type  TEXT NOT NULL,
+                data        TEXT NOT NULL DEFAULT '{}',
+                timestamp   TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_telemetry_ts ON telemetry_events(timestamp);",
+        )
+        .context("Migration 1 failed")?;
+    }
+
+    if current < 2 {
+        // Migration 2: (reserved for future use — placeholder for next schema change)
+        // This ensures new installs start at version 2.
+    }
+
+    if current < SCHEMA_VERSION {
+        set_schema_version(conn, SCHEMA_VERSION)?;
+    }
+
+    Ok(())
 }
 
 /// Record a change in the journal. Returns the generated change ID.
