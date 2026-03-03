@@ -4,7 +4,6 @@ import { useChatStore } from "../stores/chatStore";
 import { useSessionStore } from "../stores/sessionStore";
 import type { Message, ToolCall } from "../stores/chatStore";
 import { useAgent } from "../hooks/useAgent";
-import { VoiceButton } from "./VoiceButton";
 import { parseResponse } from "../lib/parseResponse";
 import * as commands from "../lib/tauri-commands";
 
@@ -659,11 +658,6 @@ export function ChatPanel() {
     }
   };
 
-  const handleVoiceTranscript = useCallback((text: string) => {
-    setInput((prev) => (prev ? prev + " " + text : text));
-    textareaRef.current?.focus();
-  }, []);
-
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Past session banner */}
@@ -751,7 +745,6 @@ export function ChatPanel() {
                 className="flex-1 bg-transparent text-sm text-text-primary placeholder-text-muted px-4 py-2.5 resize-none outline-none min-h-[38px] max-h-[120px]"
               />
               <div className="flex items-center gap-1 pr-2 pb-1.5">
-                <VoiceButton onTranscript={handleVoiceTranscript} />
                 {isProcessing ? (
                   <button
                     onClick={cancelProcessing}
