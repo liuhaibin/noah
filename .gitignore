@@ -1,5 +1,6 @@
 target/
 node_modules/
+.node-version
 dist/
 .DS_Store
 *.swp

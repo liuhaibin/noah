@@ -93,6 +93,13 @@ pub fn clear_auth_files(app_dir: &std::path::Path) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Disable GPU acceleration for WebKit2GTK on Linux to fix GBM/EGL errors
+    // This is needed on Fedora 43 and other Linux systems with certain GPU drivers
+    #[cfg(target_os = "linux")] {
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+        std::env::set_var("WEBKIT_DISABLE_GPU_COMPOSITING", "1");
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
