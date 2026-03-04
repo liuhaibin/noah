@@ -27,15 +27,26 @@ const WINDOW_TITLES = [
   "Noah \u2014 Less Jargon, More Fixing",
 ];
 
+function dismissSplash() {
+  const splash = document.getElementById("splash");
+  if (splash) {
+    splash.classList.add("fade-out");
+    setTimeout(() => splash.remove(), 300);
+  }
+}
+
 function App() {
   const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
 
   // Check for API key on mount.
   useEffect(() => {
-    commands.hasApiKey().then((has) => setNeedsSetup(!has));
+    commands.hasApiKey().then((has) => {
+      setNeedsSetup(!has);
+      dismissSplash();
+    });
   }, []);
 
-  // Show nothing while checking.
+  // Show nothing while checking (splash is still visible).
   if (needsSetup === null) return null;
 
   // Show setup screen if no API key configured.
