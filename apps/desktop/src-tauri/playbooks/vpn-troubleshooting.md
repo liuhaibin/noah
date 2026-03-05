@@ -10,58 +10,97 @@ platform: macos
 User reports: VPN won't connect, VPN keeps disconnecting, can't access work resources on VPN, slow internet with VPN, DNS not resolving with VPN on.
 
 ## Quick check
-Run `mac_network_info` — look for a `utun` or `ipsec` interface (VPN tunnel).
-- If VPN interface exists with an IP → tunnel is up. Problem is likely DNS or routing. Jump to step 3.
+**First: check knowledge for VPN context.**
+Use `search_knowledge` for "VPN" — look for saved VPN client name, server address, auth method.
+If no knowledge found, ask the user: "Which VPN app do you use?" (GlobalProtect, Cisco AnyConnect, WireGuard, built-in macOS VPN, etc.) and save the answer with `write_knowledge` to category `network` for next time.
+
+Then run `mac_network_info` — look for a `utun` or `ipsec` interface.
+- If VPN interface exists with an IP → tunnel is up. Problem is likely DNS. Jump to step 3.
 - If no VPN interface → VPN is not connected. Start at step 1.
 
 ## Standard fix path (try in order)
 
 ### 1. Verify internet connectivity
 Run `mac_ping` to `8.8.8.8`. VPN requires a working internet connection first.
-- If ping fails → fix the internet connection first. Activate `network-diagnostics` playbook.
-- If ping works → internet is fine. Continue.
+- If ping fails → fix internet first. Activate `network-diagnostics` playbook.
+- If ping works → continue.
 
-### 2. Reconnect VPN
-Disconnect and reconnect the VPN client. Many transient failures resolve on reconnect.
-- If the VPN client shows an error → note the error message for diagnosis.
-- If it connects but immediately drops → check for conflicting VPN clients. Only one should be active at a time.
-- If it won't connect at all → check: has the password changed? Does MFA (Duo, Okta) need to be completed? Is the VPN client up to date?
+### 2. Disconnect, flush, reconnect
+This three-step reset resolves most transient VPN failures:
+1. Disconnect the VPN completely.
+2. Run `mac_flush_dns` to clear stale DNS entries.
+3. Reconnect the VPN.
+
+macOS DNS resolver gets confused after multiple VPN connect/disconnect cycles. A clean flush before reconnecting prevents this.
 
 ### 3. Fix DNS (the #1 VPN issue)
 Most "VPN connected but can't access anything" problems are DNS.
-Run `mac_dns_check` for an internal hostname (e.g., `intranet.company.com`) AND an external one (`google.com`).
+Run `mac_dns_check` for an internal hostname AND `google.com`.
 
-- **Internal fails, external works** → VPN DNS server isn't in the resolver chain. Fix: `mac_flush_dns` to clear stale cache, then reconnect VPN.
-- **Both fail** → VPN is capturing all DNS but its DNS server is unreachable. Disconnect VPN, verify DNS works, reconnect.
-- **Both work** → DNS is fine. The problem is routing — specific subnets may not route through the VPN tunnel.
+- **Internal fails, external works** → VPN DNS server not in resolver chain. Flush DNS (`mac_flush_dns`), reconnect VPN. If still failing, the VPN client may need reconfiguration — see client-specific notes below.
+- **Both fail** → VPN is capturing all DNS but its server is unreachable. Disconnect VPN, verify DNS works without it, reconnect.
+- **Both work** → DNS is fine. Problem is routing — specific subnets may not route through the tunnel. This is a VPN server config issue, not fixable locally.
 
-### 4. Flush DNS and reconnect
-Run `mac_flush_dns`, then disconnect and reconnect the VPN.
-After connecting/disconnecting VPN multiple times, macOS DNS resolver can get confused. A clean flush + reconnect resets the state.
+### 4. Check VPN client process
+Run `mac_process_list` — look for the VPN client process.
+- **Not running** → VPN service crashed or didn't start. Relaunch the VPN app.
+- **Running but VPN won't connect** → the client may have a stale state. Quit the VPN app completely, then relaunch.
+- If the VPN system extension was disabled after a macOS update: System Settings → Privacy & Security → Network Extensions — re-enable it.
 
-> Steps 1-4 resolve ~80% of VPN issues. The #1 cause: DNS misconfiguration after VPN connect/disconnect cycles.
+> Steps 1-4 resolve ~75% of VPN issues. Success rate improves significantly with client-specific knowledge (see below).
+
+## Client-specific notes
+**These are most useful when grounded with the user's actual VPN setup from knowledge.**
+
+**GlobalProtect (Palo Alto):**
+- Portal vs Gateway confusion — user may need to enter the portal URL, not the gateway.
+- "HIP check failed" → compliance check failing. Update macOS, ensure FileVault is enabled, check if required antivirus is running.
+- Reconnect: quit GlobalProtect from menu bar → relaunch from Applications.
+
+**Cisco AnyConnect:**
+- "VPN agent service not available" → `vpnagentd` process not running. Relaunch AnyConnect.
+- Credential issues: clear AnyConnect entries in Keychain Access, reconnect.
+- If AnyConnect connects but DNS breaks: AnyConnect aggressively overrides DNS settings. `mac_flush_dns` after connect usually fixes it.
+
+**WireGuard:**
+- DNS is configured per-tunnel in the WireGuard config file. If DNS breaks with WireGuard, the `DNS =` line in the config may be wrong.
+- WireGuard doesn't "reconnect" — it's always on. Toggle the tunnel off/on.
+
+**Built-in macOS VPN (IKEv2/L2TP):**
+- "Server not responding" → usually a firewall blocking ports 500/4500 (IKEv2) or 1701 (L2TP).
+- Certificate-based auth: check Keychain for expired VPN certificates.
 
 ## Caveats
-- **Port blocking:** Hotel/airport/corporate-guest Wi-Fi often blocks VPN ports (500, 4500 for IKEv2; 1194 for OpenVPN). If the VPN has an SSL/HTTPS mode (port 443), suggest trying that — it's rarely blocked.
-- **macOS sleep disconnects VPN** by default. Some VPN clients have a "reconnect after wake" setting. If VPN drops every time the Mac sleeps, this is normal behavior, not a bug.
-- **Full-tunnel vs split-tunnel:** If internet is slow with VPN on, the VPN may be routing ALL traffic (full tunnel). This is expected — the VPN server's connection is the bottleneck. Ask IT if split-tunnel is available.
+- **Port blocking:** Hotel/airport Wi-Fi often blocks VPN ports. If the VPN supports SSL mode (port 443), try that — it's rarely blocked. Alternative: use a mobile hotspot to bypass the network.
+- **macOS sleep disconnects VPN** — this is default macOS behavior, not a bug. Some VPN clients have a "reconnect after wake" option.
+- **Full-tunnel = slow internet** — if ALL traffic routes through VPN, the VPN server's connection is the bottleneck. This is expected. Ask IT if split-tunnel is available.
 
 ## Key signals
-- **"VPN works from home but not this hotel"** → port blocking. Try SSL mode or a mobile hotspot as a workaround.
-- **"Can't access [internal site] but internet works fine"** → DNS issue. Step 3.
-- **"VPN worked until macOS update"** → check if VPN system extension is still allowed. System Settings → Privacy & Security → Network Extensions.
-- **"VPN says 'HIP check failed'" (GlobalProtect)** → the client is checking system compliance (OS version, antivirus, FileVault). Update macOS and ensure FileVault is enabled.
-- **"Keeps asking for credentials"** → clear Keychain entries for the VPN client and re-enter credentials.
+- **"Works from home but not this hotel"** → port blocking. Try SSL mode.
+- **"Can't access [internal site] but internet works"** → DNS issue. Step 3.
+- **"VPN worked until I updated macOS"** → system extension got disabled. Step 4.
+- **"Keeps asking for credentials"** → clear Keychain entries for the VPN and re-enter.
+- **"Nobody at the office can connect"** → VPN server is down. Nothing to fix locally — contact IT.
+
+## Knowledge to save
+After resolving a VPN issue, save these details with `write_knowledge` to `network/vpn-config`:
+- VPN client name and version
+- VPN server/portal URL
+- Auth method (password, MFA app, certificate)
+- Known working DNS servers
+- Split-tunnel vs full-tunnel
+This makes future VPN issues much faster to resolve.
 
 ## Tools referenced
 - `mac_ping` — basic connectivity test
 - `mac_network_info` — check for VPN tunnel interface
-- `mac_dns_check` — test internal vs external DNS
+- `mac_dns_check` — test internal vs external DNS resolution
 - `mac_flush_dns` — clear DNS cache
-- `mac_process_list` — check if VPN client process is running
-- `mac_http_check` — test HTTP access through VPN
+- `mac_process_list` — check if VPN client is running
+- `search_knowledge` — check for saved VPN configuration
+- `write_knowledge` — save VPN config for future sessions
 
 ## Escalation
-If VPN issues can't be resolved locally:
-- Contact IT/help desk with: VPN client name and version, error message, and whether it worked before.
-- Many VPN issues are server-side (expired certificates, policy changes, server maintenance).
+If local troubleshooting fails:
+- Provide IT with: VPN client name/version, exact error message, whether it worked before, and what network the user is on.
+- Many VPN issues are server-side (expired certs, policy changes, maintenance).
