@@ -7,92 +7,75 @@ platform: macos
 # App Doctor
 
 ## When to activate
-User reports: app crashes, app won't open, app frozen, "app is damaged" error, app unexpectedly quit, app permissions issue, app not responding.
+User reports: app crashes, app won't open, app frozen, "app is damaged" error, app unexpectedly quit.
 
-## Protocol
+## Quick check
+Run `mac_process_list` — is the app currently running?
+- If running but unresponsive → offer to force-quit with `mac_kill_process`, then relaunch.
+- If not running → proceed with fix path.
 
-### Step 1: Identify the app
-Ask or determine which app is having problems.
-Run `mac_app_list` to verify the app is installed and get its path.
-- If app not found in list: it may be uninstalled, or installed in a non-standard location.
+## Standard fix path (try in order)
 
-### Step 2: Check if app is currently running
-Run `mac_process_list` and look for the app's process.
-- **If running but unresponsive:** Offer to force-quit with `mac_kill_process`, then relaunch.
-- **If not running:** Try to understand why it won't launch (Step 3).
-- **If running and crashing repeatedly:** Check crash logs (Step 3).
+### 1. Force-quit and relaunch
+Ensure the app is fully quit (not just the window closed). Check for lingering processes in `mac_process_list`. Kill any remaining instances, then relaunch.
+Most "app won't open" cases are actually a zombie process holding a lock.
 
-### Step 3: Crash log analysis
+### 2. Clear app cache
+Run `mac_clear_app_cache` with the app's bundle ID.
+This removes cached data without affecting settings or user data. Most apps rebuild their cache on next launch.
+- Fixes: corrupted cache causing crashes, slow startup, stale data.
+
+### 3. Check crash logs
 Run `crash_log_reader` with the app name to get recent crash reports.
+The exception type tells you what's wrong:
+- **EXC_BAD_ACCESS (SIGSEGV)** — memory bug in the app. Update the app to latest version.
+- **SIGABRT** — failed assertion, often from corrupted preferences. Go to step 4.
+- **EXC_CRASH (SIGKILL)** — killed by the system (too much memory, launch timeout). Check if the system is under memory pressure.
+- **EXC_BAD_INSTRUCTION** — on Apple Silicon, may need Rosetta 2. Go to step 5.
 
-**Common exception types:**
-- **EXC_BAD_ACCESS (SIGSEGV/SIGBUS)** — Memory access violation. The app tried to read/write invalid memory. Usually a bug in the app. Suggest: update the app, or reinstall.
-- **SIGABRT** — The app deliberately aborted, usually due to a failed assertion. Often caused by corrupted preferences or cache. Try clearing app cache (Step 4).
-- **EXC_GUARD** — Sandbox violation. The app tried to access a resource it's not allowed to. May need to reset permissions (Step 5).
-- **EXC_CRASH (SIGKILL)** — Killed by the system. Reasons: too much memory usage, watchdog timeout (launch took too long), or thermal shutdown.
-- **EXC_BAD_INSTRUCTION** — Illegal CPU instruction. On Apple Silicon, this can mean the app needs Rosetta 2.
+### 4. Reset preferences
+App preferences live in `~/Library/Preferences/` as `.plist` files (usually `com.developer.appname.plist`).
+Rename the plist to `.plist.bak` (don't delete — back it up), then relaunch. The app creates fresh default preferences.
+- This fixes crashes caused by corrupted or incompatible settings (common after app updates).
 
-**If no crash logs found:**
-- The app may be failing silently. Check `mac_app_logs` for console output.
-- Launch the app from Terminal to see error messages: `open -a "AppName"`.
+### 5. Check Gatekeeper and permissions
+**"App is damaged and can't be opened"** — this is almost never actual corruption. It's the quarantine flag.
+- Fix: System Settings → Privacy & Security → scroll down → "Open Anyway" for the blocked app.
+- The app was downloaded from the internet and macOS is being cautious.
 
-### Step 4: Graduated cache/preferences reset
-Try these in order, testing the app after each:
+**App needs Rosetta 2 (Apple Silicon Macs):**
+- If the app was built for Intel only, it needs Rosetta translation.
+- Rosetta installs automatically on first use but can fail silently.
+- If the app crashes with EXC_BAD_INSTRUCTION: try right-click app → Get Info → check "Open using Rosetta."
 
-1. **Clear app cache:** Run `mac_clear_app_cache` with the app's bundle ID.
-   - This removes cached data without affecting settings or user data.
-   - Most apps rebuild their cache on next launch.
+### 6. Reinstall the app
+Last resort. Delete the app, clean up its support files, reinstall from the original source.
+- Delete: drag app from Applications to Trash.
+- Clean up: remove related files in `~/Library/Caches/`, `~/Library/Preferences/`, `~/Library/Application Support/` for that app.
+- Reinstall from App Store or developer website.
 
-2. **Reset preferences (if cache clearing didn't help):**
-   - App preferences live in `~/Library/Preferences/` as .plist files.
-   - Identify the plist: usually `com.developer.appname.plist`.
-   - Suggest renaming (not deleting) the plist to back it up, then relaunch.
-   - The app will create fresh default preferences.
+> Steps 1-4 resolve ~90% of app issues. Most common: corrupted cache (step 2) or preferences (step 4).
 
-3. **Clear app support data (last resort before reinstall):**
-   - Check `~/Library/Application Support/AppName/` for corrupted data.
-   - Use `mac_app_logs` to check for specific error paths.
-   - Only suggest clearing if crash logs point to data corruption.
+## Caveats
+- **Don't reinstall as the first step.** It's the most disruptive and often doesn't fix the underlying issue if corrupted preferences or cache are the cause — those survive reinstallation.
+- **"App is damaged"** = quarantine flag, not corruption. Don't suggest reinstalling for this — just clear the Gatekeeper block (step 5).
+- **Crashes only after OS update** → app may need updating for the new OS version. Check the App Store or developer website for a compatible update before clearing caches.
 
-### Step 5: Permission and security checks
+## Key signals
+- **"It worked until I updated macOS"** → app incompatibility. Check for app update first, then try Rosetta (step 5).
+- **"Crashes immediately on launch"** → usually corrupted preferences (step 4) or a lingering zombie process (step 1).
+- **"Works for a while then crashes"** → memory leak in the app or corrupted cache. Step 2 then step 4.
+- **"Says I don't have permission"** → check Privacy & Security settings. The app may need Camera, Microphone, Files, or Full Disk Access permissions.
 
-**Gatekeeper / quarantine issues:**
-- **"App is damaged and can't be opened"** — Usually NOT corruption. The app's quarantine flag is set and Gatekeeper is blocking it.
-  - Check: The app was likely downloaded from the internet.
-  - Fix: System Settings > Privacy & Security > scroll down to see blocked app > "Open Anyway".
-  - Alternative: Remove quarantine attribute (with user permission).
+## Tools referenced
+- `mac_process_list` — check for running/zombie processes
+- `mac_kill_process` — force-quit (NeedsApproval tier)
+- `mac_clear_app_cache` — clear app cache
+- `crash_log_reader` — read and summarize crash reports
+- `mac_app_list` — verify app is installed
 
-**Privacy permissions:**
-- **"App would like to access..."** dialogs not appearing:
-  - Check System Settings > Privacy & Security > relevant category (Camera, Microphone, Files, etc.).
-  - If the app isn't listed, it may need to be added manually.
-  - If the toggle is off, the user needs to enable it.
-
-**Full Disk Access:**
-- Some apps (backup tools, security scanners, Terminal) need Full Disk Access.
-- System Settings > Privacy & Security > Full Disk Access.
-
-### Step 6: Apple Silicon / Rosetta 2 issues
-For Macs with Apple Silicon (M1/M2/M3/M4):
-- **App requires Rosetta 2:** If Rosetta isn't installed, Intel apps won't run.
-  - Rosetta installs automatically on first use, but can fail silently.
-  - Check if installed: `arch` command should show `arm64`.
-  - If app was built for Intel only, it needs Rosetta translation.
-- **Universal binary issues:** Some universal binaries have bugs in the ARM slice.
-  - Try running under Rosetta: right-click app > Get Info > check "Open using Rosetta".
-
-### Step 7: Reinstall as last resort
-If all previous steps failed:
-1. Note the app version and any important settings.
-2. Suggest the user:
-   - Delete the app (move to Trash from Applications).
-   - Clean up: `~/Library/Caches/`, `~/Library/Preferences/`, `~/Library/Application Support/` for the app's files.
-   - Re-download from the original source (App Store or developer website).
-   - Reinstall.
-
-## Common app-specific issues
-- **Microsoft Office:** "Identity could not be verified" → delete Keychain entries for Microsoft.
-- **Adobe Creative Cloud:** Crashes often caused by corrupted preferences. Adobe provides a Cleaner Tool.
-- **Zoom:** Camera/mic permissions. Check Privacy & Security settings.
-- **Slack:** High memory usage is normal for Electron apps. Restart helps.
-- **Xcode:** "Unable to boot simulator" → delete derived data. "No provisioning profile" → re-sign.
+## Escalation
+If all steps fail:
+- Collect crash logs and app version for the developer's support team.
+- Check the app's support forum or release notes for known issues.
+- For enterprise apps: contact the vendor or internal IT.

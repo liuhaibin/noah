@@ -1,107 +1,71 @@
 ---
 name: outlook-troubleshooting
-description: Fix Outlook sync failures, crashes, calendar issues, and profile corruption
+description: Fix Outlook sync failures, crashes, stuck email, and profile corruption
 platform: all
 ---
 
 # Outlook Troubleshooting
 
 ## When to activate
-User reports: Outlook won't sync, email stuck in outbox, calendar not updating, Outlook crashes on launch, search not working, can't add account, "need password" loop, Outlook slow.
+User reports: Outlook won't sync, email stuck in outbox, calendar not updating, Outlook crashes, search not working, "need password" loop, Outlook slow, OST corrupted.
 
-## Protocol
+## Quick check
+Verify this is an Outlook-specific issue, not a network problem:
+- Can the user access email at https://outlook.office.com in a browser?
+- If webmail also fails → this is a server or account issue, not an Outlook client issue. Check https://status.office.com for M365 outages.
+- If webmail works but Outlook doesn't → proceed with fix path below.
 
-### Step 1: Identify the problem type
-Ask or determine which category:
-- **Sync failure** — emails not arriving/sending, calendar not updating → Step 2
-- **Crash / won't launch** — app crashes immediately or during use → Step 3
-- **Authentication loop** — keeps asking for password → Step 4
-- **Search broken** — search returns no results or is very slow → Step 5
-- **Performance** — Outlook is slow, beach ball, high CPU → Step 6
+## Standard fix path (try in order)
 
-### Step 2: Sync failures
-**Email stuck in outbox:**
-1. Check if the message has a large attachment (>25 MB for most providers).
-2. Try: switch Outlook to offline mode (Outlook menu > Work Offline), then back online.
-3. If stuck: drag the message from Outbox to Drafts, then resend.
+### 1. Restart Outlook
+Quit Outlook completely (not just close the window), then relaunch.
+- macOS: Cmd+Q, or force-quit via Activity Monitor if unresponsive.
+- Windows: check Task Manager for lingering OUTLOOK.EXE processes and end them.
+This alone fixes transient sync hangs, stuck outbox items, and temporary auth failures.
 
-**Not receiving new email:**
-1. Check internet connectivity first (can the user browse the web?).
-2. Check the account status: Outlook > Preferences > Accounts — look for error icons.
-3. Try: manually sync with Cmd+K (macOS) or Send/Receive button (Windows).
-4. Check if emails are going to Junk/Focused Inbox instead.
-5. For Exchange/Microsoft 365: the issue may be server-side. Check https://status.office.com.
+### 2. Clear cached credentials
+The #1 cause of "keeps asking for password" loops.
+- macOS: Keychain Access → search "Microsoft" or "Exchange" or the user's email → delete those entries. Restart Outlook.
+- Windows: Control Panel → Credential Manager → Windows Credentials → remove "MicrosoftOffice" entries and any entries matching the email address. Restart Outlook.
+- If using M365 with MFA, have the user sign in at https://outlook.office.com first to confirm credentials work.
 
-**Calendar not syncing:**
-1. Verify the calendar is checked/visible in the sidebar.
-2. For shared calendars: permissions may have changed. Ask user to re-request access.
-3. Try removing and re-adding the account (last resort — see Step 7).
+### 3. Rebuild the cache (OST/local data)
+Outlook stores a local copy of the mailbox. If corrupted, sync breaks.
+- macOS: Outlook → Preferences → Accounts → select account → "Empty Cache". Outlook re-downloads everything from the server.
+- Windows: File → Account Settings → Account Settings → Data Files tab → note the .ost path. Close Outlook, rename the .ost file (don't delete — rename to .ost.bak), reopen Outlook. It creates a fresh OST and re-syncs.
+- **This is safe for Exchange/M365 accounts** — all data lives on the server. The OST is just a cache.
 
-### Step 3: Crashes
-**On macOS:**
-- Check crash logs with `crash_log_reader` for "Microsoft Outlook".
-- Common fix: remove Outlook preferences — move `~/Library/Group Containers/UBF8T346G9.Office/Outlook/Outlook 15 Profiles/` to Desktop as backup, then relaunch.
-- If crash mentions "identity" or "database": the Outlook profile is corrupted → Step 7.
+### 4. Rebuild the profile
+If cache rebuild didn't fix it, the profile itself may be corrupted.
+- macOS: Outlook profiles live in `~/Library/Group Containers/UBF8T346G9.Office/Outlook/Outlook 15 Profiles/`. Rename the folder, relaunch Outlook — it creates a fresh profile. Re-add the email account.
+- Windows: Control Panel → Mail → Show Profiles → Add a new profile. Set it as default. Open Outlook with the new profile.
+- The old profile is preserved (renamed, not deleted) so nothing is lost.
 
-**On Windows:**
-- Start Outlook in Safe Mode: hold Ctrl while clicking Outlook icon, or run `outlook.exe /safe`.
-- If Safe Mode works: a bad add-in is the cause. Disable add-ins one by one (File > Options > Add-ins > Manage COM Add-ins).
-- Common culprit add-ins: antivirus email scanners, CRM plugins, old Teams add-in.
+### 5. Repair Office installation
+If Outlook still crashes or misbehaves with a fresh profile:
+- macOS: Download the latest Office installer from https://office.com and reinstall over the existing installation.
+- Windows: Settings → Apps → Microsoft Office → Modify → choose "Online Repair" (not Quick Repair — Online Repair is more thorough).
 
-**On both platforms:**
-- If Outlook crashes immediately: try creating a new profile to test (doesn't delete old data).
-- Office repair: run the Microsoft repair tool (macOS: re-download from office.com, Windows: Apps & Features > Microsoft Office > Modify > Repair).
+> This sequence resolves ~95% of Outlook sync and crash issues.
 
-### Step 4: Authentication / password loops
-**"Need password" or "Enter credentials" loop:**
-1. This is usually a cached credential issue, not a real password problem.
-2. **macOS fix:** Open Keychain Access, search for "Exchange" or "Microsoft" or the email address, delete those entries. Restart Outlook.
-3. **Windows fix:** Control Panel > Credential Manager > Windows Credentials, remove entries for "MicrosoftOffice" or the email address. Restart Outlook.
-4. If using Microsoft 365 with MFA: ensure the Authenticator app is working. Try signing in at https://outlook.office.com in a browser first.
-5. **Modern Auth issue:** Some older Outlook versions don't support Modern Authentication. Update Office to the latest version.
-6. For organizational accounts: check with IT if the account is locked or if Conditional Access policies changed.
+## Caveats
+- If the OST file is >10 GB, step 3 (cache rebuild) takes 30+ minutes. Warn the user and suggest doing it over lunch or end of day.
+- If this is a **shared mailbox** issue (not the user's own mailbox), it's almost always a permissions problem, not a profile issue. Don't rebuild — check if the user still has delegate access.
+- If Outlook crashes on launch and you can't even open it: on Windows, try `outlook.exe /safe` to start in Safe Mode with add-ins disabled. Common culprit add-ins: antivirus email scanners, CRM plugins, old Teams add-in.
+- If the user says "search doesn't work" but everything else is fine, that's a search index issue:
+  - macOS: Spotlight indexes Outlook data. Reindex: Outlook → Preferences → Spotlight rebuild.
+  - Windows: File → Options → Search → Indexing Options → Advanced → Rebuild.
 
-### Step 5: Search not working
-**macOS:**
-- Outlook uses Spotlight for search. If Spotlight indexing is broken, search fails.
-- Check: is Spotlight indexing? (`mdutil -s /` shows status).
-- Fix: rebuild Outlook search index — Outlook menu > Preferences > Accounts > select account > Rebuild (older versions) or reindex Spotlight for the Outlook profile folder.
+## Key signals
+- **"It worked yesterday"** → likely an expired auth token. Jump to step 2 (credentials).
+- **"Nobody in the office can send email"** → server-side outage, not local. Check https://status.office.com before touching anything.
+- **"Only calendar won't sync"** → usually permissions on a shared calendar, not a sync issue. Have the calendar owner re-share it.
+- **"Keeps crashing after macOS/Windows update"** → Office version may be incompatible with the new OS. Jump to step 5 (repair/update Office).
+- **"Email stuck in outbox"** → check attachment size first (>25 MB fails for most providers). If small, toggle Work Offline on/off (Outlook menu), then back online.
+- **"Your mailbox is full"** → Exchange quota hit. User needs to archive or delete old mail. This is not an Outlook bug.
 
-**Windows:**
-- Fix: File > Options > Search > Indexing Options > Advanced > Rebuild.
-- Alternative: run `outlook.exe /resetnavpane` to reset the navigation pane and search.
-
-**Both:**
-- If search is slow but works: the mailbox may be very large (>10 GB). Suggest archiving old mail.
-
-### Step 6: Performance issues
-**Outlook is slow:**
-1. Check mailbox size — very large mailboxes (>10 GB) cause slowness.
-2. Check for too many folders or rules — each rule runs on every incoming message.
-3. Disable unnecessary add-ins (especially on Windows).
-4. **macOS:** Check if Spotlight is re-indexing (mds process high CPU).
-5. **Windows:** Try disabling hardware acceleration: File > Options > Advanced > uncheck "Disable hardware graphics acceleration" (confusing double-negative — check the box to disable GPU).
-
-**High CPU usage:**
-- On macOS: check process list for "Microsoft Outlook" CPU usage.
-- If Outlook is syncing a large mailbox for the first time, high CPU is expected temporarily.
-- If persistent: try repairing the profile (Step 7).
-
-### Step 7: Profile reset (graduated approach)
-Try these in order:
-1. **Clear cache:** Force Outlook to re-download from server (doesn't lose local data if using Exchange/M365).
-   - macOS: Outlook > Preferences > Accounts > select account > Empty Cache.
-   - Windows: File > Account Settings > Account Settings > Data Files tab > examine the .ost file location.
-2. **New profile:** Create a new Outlook profile to test.
-   - macOS: Outlook stores profiles in `~/Library/Group Containers/UBF8T346G9.Office/Outlook/`.
-   - Windows: Control Panel > Mail > Show Profiles > Add.
-3. **Repair Office installation:** Use Microsoft's built-in repair.
-4. **Complete reinstall:** Uninstall Office, clean up remaining files, reinstall.
-
-## Common Outlook error messages
-| Error | Meaning | Fix |
-|---|---|---|
-| "Cannot start Microsoft Outlook. Cannot open the Outlook window" | Corrupted profile or navigation pane | Run `outlook.exe /resetnavpane` (Windows) |
-| "The operation failed" when sending | Server rejection or attachment too large | Check outbox, reduce attachment size |
-| "Your mailbox is full" | Exchange quota exceeded | Archive or delete old messages |
-| "Certificate error" / "Security certificate has expired" | SSL/TLS issue | Check date/time is correct, update Office |
+## Escalation
+If all 5 steps fail:
+- Check if the problem is account-specific: try adding a different email account to the same Outlook. If the other account works, the issue is server-side for that specific account.
+- For enterprise/M365 accounts: the IT admin may need to check Conditional Access policies, app passwords, or account lockouts in Azure AD.
+- For persistent crashes: collect the crash log and Office version number for Microsoft support.

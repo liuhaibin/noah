@@ -7,66 +7,58 @@ platform: macos
 # Printer Repair
 
 ## When to activate
-User reports: can't print, print jobs stuck, printer not found, printing fails, printer offline, print quality issues, "Filter failed" errors.
+User reports: can't print, print jobs stuck, printer not found, printing fails, printer offline.
 
-## Protocol
+## Quick check
+Run `mac_print_queue` to see current jobs and `mac_printer_list` to see configured printers.
+- If no printers configured → printer was never added or was removed. Jump to escalation.
+- If printers exist → proceed with fix path.
 
-### Step 1: Check print queue
-Run `mac_print_queue` to see current jobs.
-- **If jobs are stuck (status: held, paused, or stalled):**
-  - Cancel all stuck jobs with `mac_cancel_print_jobs`.
-  - Then check if the printer is paused (CUPS sometimes pauses a printer after errors).
-- **If queue is empty:** Problem is not a stuck job. Continue to Step 2.
+## Standard fix path (try in order)
 
-### Step 2: List configured printers
-Run `mac_printer_list` to see all printers.
-- **If no printers found:** Printer was removed or never added. Suggest: System Settings > Printers & Scanners > Add Printer.
-- **If printer shows but is paused/disabled:** CUPS paused it after errors. Run `mac_restart_cups` to reset.
-- **If multiple copies of same printer exist:** "Duplicate printer syndrome" — common after macOS updates. Suggest removing duplicates in System Settings > Printers & Scanners.
+### 1. Clear stuck jobs
+Run `mac_cancel_print_jobs` to clear all pending jobs.
+A single stuck job blocks everything behind it. Clearing the queue and reprinting is the fastest fix.
 
-### Step 3: Test printer connectivity
-Based on printer type:
+### 2. Restart CUPS
+Run `mac_restart_cups` to restart the macOS print system.
+This clears the print spooler state, re-enables paused printers, and re-establishes connections.
+CUPS often auto-pauses a printer after a few failed jobs — restarting fixes this.
 
-**Network printer (IP-based):**
-- Run `mac_ping` to printer's IP address.
-- If ping fails → printer is offline, powered off, or IP changed. Check if printer is on and connected to same network.
-- If ping succeeds → printer is reachable. Problem is likely CUPS or driver.
+### 3. Check printer connectivity
+Based on printer type (visible in `mac_printer_list`):
+- **Network printer:** Run `mac_ping` to the printer's IP. If unreachable, the printer is off, disconnected from Wi-Fi, or its IP changed.
+- **USB printer:** If not in the printer list, try unplugging and re-plugging the cable. USB-C hubs can cause detection issues — try connecting directly.
+- **AirPrint:** These are discovered via Bonjour/mDNS. If not appearing, the printer may be on a different subnet.
 
-**AirPrint/Bonjour printer:**
-- These are discovered via mDNS. If not showing up, the printer may be on a different subnet or mDNS is blocked.
-- Check if printer appears in Finder sidebar (Bonjour discovery).
+### 4. Delete and re-add the printer
+If steps 1-3 didn't fix it, remove the printer in System Settings → Printers & Scanners, then add it again.
+- For AirPrint printers, select the "AirPrint" driver instead of manufacturer-specific. AirPrint drivers are more reliable on modern macOS.
+- This forces a fresh connection and clears any corrupted driver state.
 
-**USB printer:**
-- Check if it appears in `mac_printer_list`. If not, try unplugging and re-plugging the USB cable.
-- USB-C hubs can cause detection issues. Try connecting directly.
+> Steps 1-2 fix ~80% of print issues. The most common cause is a stuck job that paused the queue.
 
-### Step 4: CUPS diagnosis
-Run `crash_log_reader` with path `/var/log/cups/error_log` to check for CUPS errors.
+## Caveats
+- **"Filter failed" error** in CUPS logs → the print filter (document converter) crashed. This is almost always a driver issue. Delete the printer and re-add with the AirPrint or generic PostScript driver.
+- **Duplicate printers** after macOS update — macOS sometimes creates copies (e.g., "HP LaserJet" and "HP LaserJet (2)"). Remove the duplicates in System Settings → Printers & Scanners.
+- **Print dialog shows no printers** even though `mac_printer_list` finds them — this is a known macOS UI bug. Quit and relaunch the app, or try printing from a different app.
 
-**Common CUPS errors:**
-- **"Filter failed"** → Driver/filter issue. The print filter (which converts documents to printer format) crashed.
-  - Fix: Delete and re-add the printer. If using third-party drivers, reinstall them.
-  - For AirPrint printers, try selecting "AirPrint" driver instead of manufacturer-specific.
-- **"Unable to connect"** → Network connectivity issue (see Step 3).
-- **"Unauthorized"** → Permissions issue. Reset CUPS with `mac_restart_cups`.
-- **"Backend failed"** → Communication protocol error. Try switching between IPP, LPD, or Socket protocols.
+## Key signals
+- **"It printed fine yesterday"** → stuck job. Steps 1-2 will fix it.
+- **"Printer shows 'offline'"** → check if printer is powered on and connected to the same network. Run `mac_ping` to its IP.
+- **"Prints from my phone but not my Mac"** → CUPS or driver issue on the Mac. Steps 2 and 4 will fix it.
+- **"Everything prints garbled/blank"** → driver mismatch. Re-add printer with the correct or generic driver (step 4).
 
-### Step 5: Graduated reset
-Try these in order, testing printing after each:
-
-1. **Restart CUPS:** Run `mac_restart_cups`. This clears the print system state without losing configuration.
-2. **Reset print system:** If CUPS restart doesn't help, suggest: System Settings > Printers & Scanners > right-click printer list > "Reset printing system". WARNING: This removes all printers; they'll need to be re-added.
-
-### Step 6: Print dialog showing no printers
-This is a known macOS UI bug where the print dialog's printer dropdown is empty even though printers are configured.
-- Verify printers exist with `mac_printer_list`.
-- If printers are configured but don't show in print dialog:
-  - Try: close and reopen the print dialog.
-  - Try: quit and relaunch the application.
-  - Try: `mac_restart_cups`.
+## Tools referenced
+- `mac_printer_list` — list configured printers
+- `mac_print_queue` — check pending jobs
+- `mac_cancel_print_jobs` — clear all stuck jobs
+- `mac_restart_cups` — restart the print system
+- `mac_ping` — test network printer connectivity
+- `crash_log_reader` — read CUPS error log at `/var/log/cups/error_log`
 
 ## Escalation
 If all steps fail:
-- Check if the printer works from another device (phone, other computer) to isolate the issue.
-- For enterprise printers: may need IT to check print server or Active Directory permissions.
-- For old printers: macOS may have dropped driver support. Check manufacturer's website for updated drivers.
+- Test if the printer works from another device (phone, other computer) to isolate the issue.
+- For enterprise printers: may need IT to check print server or AD permissions.
+- For older printers: macOS may have dropped driver support. Check manufacturer's website.

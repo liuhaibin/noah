@@ -7,62 +7,60 @@ platform: macos
 # Network Diagnostics
 
 ## When to activate
-User reports: can't connect, Wi-Fi dropping, slow internet, DNS errors, pages not loading, "no internet" warnings, VPN issues, network timeouts.
+User reports: can't connect, Wi-Fi dropping, slow internet, DNS errors, pages not loading, "no internet" warning.
 
-## Protocol
+## Quick check
+Run `mac_ping` to `8.8.8.8` with count 3.
+- If ping succeeds → internet works. Problem is DNS or application-level. Jump to step 3.
+- If ping fails → no internet connectivity. Start at step 1.
 
-### Step 1: Quick connectivity check
-Run `mac_ping` to `8.8.8.8` with count 3 (raw IP — tests basic connectivity without DNS).
-- **If ping succeeds:** Internet is reachable. Skip to Step 3 (DNS/application layer).
-- **If ping fails:** No internet connectivity. Continue to Step 2.
+## Standard fix path (try in order)
 
-### Step 2: Local network check
-Run `mac_network_info` to check interfaces and Wi-Fi association.
+### 1. Check Wi-Fi association
+Run `mac_network_info` to check interfaces and IP address.
+- **No Wi-Fi interface or "not associated"** → Wi-Fi is off or disconnected. Tell user to reconnect via Wi-Fi menu bar.
+- **Self-assigned IP (169.254.x.x)** → DHCP failed. Turn Wi-Fi off and back on. If repeats, try: forget network, re-join with password.
+- **Valid local IP (192.168.x.x, 10.x.x.x)** → Wi-Fi is connected. Continue.
 
-**Check Wi-Fi association:**
-- If Wi-Fi shows "not associated" or no IP address → Wi-Fi is disconnected. Tell user to reconnect via Wi-Fi menu. If it keeps dropping, run `wifi_scan` to check for channel congestion.
-- If Wi-Fi has a self-assigned IP (169.254.x.x) → DHCP failed. Suggest: turn Wi-Fi off and on, or renew DHCP lease via System Settings > Network.
-- If Wi-Fi has a valid IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x) → local network is fine. Test gateway.
+### 2. Check gateway and upstream
+Run `mac_ping` to the gateway IP (shown in `mac_network_info`).
+- **Gateway ping fails** → router issue. Suggest: power-cycle the router (unplug 10 seconds, plug back in). This fixes most home/office router hangs.
+- **Gateway works, 8.8.8.8 fails** → ISP or upstream issue. Try a different DNS: `mac_ping` to `1.1.1.1`. If that also fails, it's an ISP outage — nothing Noah can fix locally.
 
-**Test gateway:**
-Run `mac_ping` to the gateway IP (from network info).
-- If gateway ping fails → router issue. Suggest: restart router, check Ethernet cable if wired.
-- If gateway ping succeeds but 8.8.8.8 fails → ISP or upstream issue. Suggest: try a different DNS (1.1.1.1), check if ISP is down.
-
-### Step 3: DNS check
+### 3. Check DNS
 Run `mac_dns_check` for `google.com`.
-- **If DNS resolves:** DNS is working. Skip to Step 4.
-- **If DNS fails:**
-  - Check configured DNS servers (from `mac_network_info`).
-  - Try `mac_dns_check` for `google.com` — if this also fails, DNS is broken.
-  - Fix: Run `mac_flush_dns` to clear cache.
-  - If still failing, suggest changing DNS to 8.8.8.8 / 1.1.1.1 in System Settings > Network > Wi-Fi > DNS.
-  - **VPN conflict:** If a VPN is active, DNS may be routed through VPN's DNS. Suggest disconnecting VPN to test.
+- **DNS resolves** → DNS is fine. Jump to step 4.
+- **DNS fails** → flush DNS cache with `mac_flush_dns`. Re-test.
+  - If still failing: suggest changing DNS to 8.8.8.8 / 1.1.1.1 in System Settings → Network → Wi-Fi → Details → DNS.
 
-### Step 4: HTTP connectivity
+### 4. Check HTTP
 Run `mac_http_check` for `https://www.google.com`.
-- **If HTTP works:** Full connectivity is fine. The problem may be site-specific.
-  - Test the specific URL the user is having trouble with.
-- **If HTTP fails but DNS works:**
-  - Check for proxy settings: Run `mac_http_check` for `http://captive.apple.com` — if this redirects, user is behind a captive portal (hotel/airport Wi-Fi). Tell them to open a browser and complete the login.
-  - Check for firewall blocking: `mac_http_check` different ports/sites.
+- **Works** → full connectivity is fine. Test the specific site/service the user is having trouble with.
+- **Fails** → check for captive portal: `mac_http_check` for `http://captive.apple.com`. If it redirects, user is on hotel/airport Wi-Fi and needs to open a browser to complete login.
 
-### Step 5: Wi-Fi quality analysis (if drops/slowness reported)
-Run `wifi_scan` to analyze the wireless environment.
-- **Signal strength:** Below -70 dBm = weak signal. Suggest moving closer to router.
-- **Channel congestion:** If many networks on the same channel, suggest changing router's Wi-Fi channel (1, 6, or 11 for 2.4 GHz; any non-DFS for 5 GHz).
-- **PHY mode:** If connected at 802.11n instead of 802.11ac/ax, performance will be limited.
-- **Noise level:** High noise (above -80 dBm) indicates interference from microwaves, Bluetooth, or other devices.
+> Steps 1-4 resolve ~85% of connectivity issues. Most common fix: power-cycling the router.
 
-### Step 6: Known macOS issues
-- **Wi-Fi drops after wake from sleep:** Known macOS bug. Fix: turn Wi-Fi off/on, or forget and re-add the network.
-- **mDNSResponder high CPU:** Can cause DNS slowness. Check with process list; if high, suggest restart: `sudo killall -HUP mDNSResponder`.
-- **Slow DNS with VPN:** Split-tunnel VPNs often misconfigure DNS. Check if DNS queries go through VPN tunnel unnecessarily.
-- **"Wi-Fi has no IP address":** DHCP lease expired. Renew via System Settings or turn Wi-Fi off/on.
+## Caveats
+- If a **VPN is active**, DNS often breaks because VPN configures its own DNS servers. Try disconnecting VPN to test. If DNS works without VPN → activate the `vpn-troubleshooting` playbook instead.
+- **Wi-Fi drops after sleep** is a known macOS bug. Fix: turn Wi-Fi off/on, or forget and re-add the network. Persistent cases may need a new network location (System Settings → Network → Locations).
+- **`mDNSResponder` high CPU** can cause DNS slowness. If you see it in process list, it's usually resolving itself. Restarting it helps: `mac_flush_dns` triggers a restart.
+
+## Key signals
+- **"It was working 5 minutes ago"** → most likely a router hiccup. Power-cycle first.
+- **"Only one website doesn't work"** → DNS is fine, the site is down. Check with `mac_http_check` for that URL.
+- **"Works on my phone but not my Mac"** → Mac-specific DNS or proxy issue. Check for proxy settings in System Settings → Network → Wi-Fi → Proxies.
+- **"Slow but connected"** → run `wifi_scan` to check signal strength and channel congestion. Below -70 dBm = weak signal. Many networks on the same channel = congestion.
+
+## Tools referenced
+- `mac_ping` — basic connectivity test
+- `mac_network_info` — interfaces, IP, gateway, DNS config
+- `mac_dns_check` — DNS resolution test
+- `mac_http_check` — HTTP connectivity and timing
+- `mac_flush_dns` — clear DNS cache
+- `wifi_scan` — signal quality and channel analysis
 
 ## Escalation
-If all steps pass but user still has issues:
-- Ask for the specific URL/service that fails.
-- Check if the problem is time-dependent (certain hours = ISP congestion).
-- Suggest running a speed test (fast.com or speedtest.net in browser).
-- If corporate network, may need IT department involvement (802.1X auth, certificate issues).
+If all steps pass but the problem persists:
+- Ask for the specific URL/service that fails — it may be a firewall or proxy issue.
+- If on a corporate network, may need IT involvement (802.1X auth, certificate issues).
+- Suggest a speed test (fast.com) to quantify slowness.

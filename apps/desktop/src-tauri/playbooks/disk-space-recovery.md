@@ -7,91 +7,61 @@ platform: macos
 # Disk Space Recovery
 
 ## When to activate
-User reports: disk full, low storage warning, "not enough space" errors, can't install updates, can't download files, startup disk almost full.
+User reports: disk full, low storage warning, can't install updates, can't save files, computer slowed down suddenly, "not enough space" error.
 
-## Protocol
+## Quick check
+Run `mac_disk_usage` to confirm the disk is actually full (>85% used).
+- If plenty of free space → the problem is something else (permissions, app bug).
+- If disk is >90% full → proceed with fix path. SSDs degrade significantly above 90%.
 
-### Step 1: Assess the situation
-Run `mac_disk_usage` to get current disk usage.
-- Note total space, used space, and free space.
-- **Purgeable space:** macOS reports some space as "purgeable" — it's technically used but can be freed automatically when needed (e.g., Time Machine snapshots, optimized iCloud files). The actual available space is free + purgeable.
+## Standard fix path (try in order)
 
-### Step 2: Automated scan
-Run `disk_audit` to scan known space-hogging directories.
-This returns a categorized breakdown sorted by size.
+### 1. Automated scan
+Run `disk_audit` to scan all known space-hog directories at once.
+This returns a categorized breakdown sorted by size — present it to the user.
 
-### Step 3: Categorize findings by risk
+### 2. Safe cleanup (no user confirmation needed)
+Clean these immediately with `mac_clear_caches`:
+- System and app caches (`~/Library/Caches/`) — rebuilt automatically on next use.
+- Browser caches — rebuilt automatically.
+- macOS log files older than 30 days.
+- Temporary files (`/tmp/`, `/var/folders/`).
+This typically recovers 2-10 GB with zero risk.
 
-**SAFE to clean (no user confirmation needed):**
-- System caches (`~/Library/Caches/`) — rebuilt automatically
-- Browser caches — rebuilt automatically
-- macOS log files older than 30 days
-- Temporary files (`/tmp/`, `/var/folders/`)
+### 3. User-confirmed cleanup (present options, let user choose)
+Show findings sorted by size. For each, explain what it is and the trade-off:
+- **Trash** (`~/.Trash/`) — ask "Ready to empty Trash?"
+- **Downloads** (`~/Downloads/`) — "Review your Downloads folder. Want me to show the largest files?"
+- **Homebrew cache** (`~/Library/Caches/Homebrew/`) — safe, re-downloads as needed.
+- **npm/yarn/pip cache** — safe, re-downloads as needed.
+- **Xcode DerivedData** (`~/Library/Developer/Xcode/DerivedData/`) — safe but rebuilds are slow.
+- **Docker images** — ask first, may contain important containers.
+- **iOS backups** (`~/Library/Application Support/MobileSync/Backup/`) — irreplaceable if not backed up to iCloud. Always ask.
 
-**NEEDS USER CONFIRMATION (suggest but ask first):**
-- Downloads folder — may contain files the user wants
-- Trash (`~/.Trash/`) — user may have accidentally deleted something
-- Homebrew cache (`~/Library/Caches/Homebrew/`) — will re-download if needed
-- npm/yarn cache (`~/.npm/`, `~/.yarn/cache/`)
-- pip cache (`~/Library/Caches/pip/`)
-- Xcode DerivedData (`~/Library/Developer/Xcode/DerivedData/`) — rebuilds needed but slow
-- Docker images/volumes — may contain important data
-- iOS device backups (`~/Library/Application Support/MobileSync/Backup/`) — irreplaceable if not on iCloud
+### 4. Verify results
+Run `mac_disk_usage` again after cleanup. Report how much was freed.
 
-**DO NOT TOUCH (never clean without explicit instruction):**
-- `.DocumentRevisions-V100` — macOS document versioning. Deleting can corrupt files.
-- `/.Spotlight-V100` — Spotlight index. Deleting forces full re-index (hours of CPU).
-- `/System/` — SIP-protected. Cannot and should not be modified.
-- Time Machine backup drive — managed by the system.
-- Any directory inside user's Documents, Desktop, or home folder.
+> Steps 1-3 typically recover 10-50 GB and resolve the issue.
 
-### Step 4: Present recovery options
-Present findings to user sorted by size (largest first).
-For each item:
-- Show the directory/category and size
-- Indicate risk level (safe / needs confirmation / do not touch)
-- Explain what it is in plain language
+## Caveats
+- **Time Machine local snapshots** can consume 20+ GB invisibly. Run `tmutil listlocalsnapshots /` to check. macOS auto-purges these when space is critical, but it can be slow. Don't manually delete unless the user explicitly asks.
+- **Purgeable space** — macOS reports some space as "purgeable" (iCloud-optimized files, caches). This space is freed automatically when needed. The real available space is free + purgeable.
+- **"System Data" is large** — users see this in About This Mac. It includes Time Machine snapshots, VM swap, sleep image, and caches. Much of it is automatically managed. Don't panic.
+- **`.DocumentRevisions-V100`** — macOS document versioning database. NEVER delete. Corrupting this can break file history for all apps.
 
-Example format:
-```
-Found 47 GB that could be recovered:
-- Xcode DerivedData: 15 GB (build caches, safe to delete but rebuilds take time)
-- Docker images: 12 GB (unused images can be pruned)
-- Downloads folder: 8 GB (review before deleting)
-- System caches: 6 GB (safe, rebuilds automatically)
-- Trash: 4 GB (empty to reclaim)
-- npm cache: 2 GB (safe, re-downloads as needed)
-```
+## Key signals
+- **"Can't install macOS update"** → updates need 15-30 GB free. After cleanup, retry the update.
+- **"Disk was fine yesterday"** → check for a runaway log file. Look at disk_audit results for anything that grew suddenly. Common: app crash loops generating GBs of crash reports.
+- **"I already emptied Trash"** → the big consumers are usually caches, Xcode, Docker, or iOS backups — things users don't think of.
+- **"Only 2 GB on a 500 GB drive but I don't have much stuff"** → check for large hidden directories: Time Machine snapshots, Docker images, or Xcode taking 50+ GB.
 
-### Step 5: Clean with verification
-After user confirms which categories to clean:
-- Use `mac_clear_caches` for system caches.
-- For other categories, explain the specific command needed and get confirmation.
-- After cleaning, run `mac_disk_usage` again to verify space was recovered.
-- Report how much space was freed.
+## Tools referenced
+- `mac_disk_usage` — overall disk stats
+- `disk_audit` — scans ~12 known space-hog directories
+- `mac_clear_caches` — cleans system caches (SafeAction tier)
 
-### Step 6: Time Machine snapshots (hidden space hog)
-Time Machine creates local snapshots that can consume significant space.
-- These are not visible in Finder and don't show up in normal disk usage tools.
-- macOS automatically deletes them when space is needed, but this can be slow.
-- To check: `tmutil listlocalsnapshots /`
-- The system will automatically purge these when disk space is critically low.
-- DO NOT manually delete snapshots unless the user explicitly requests it and understands the implications.
-
-### Step 7: iCloud optimization
-If the user has iCloud Drive enabled:
-- "Optimize Mac Storage" may be downloading files locally that should be kept in the cloud.
-- Check System Settings > Apple ID > iCloud > iCloud Drive.
-- Files showing in Finder but stored in iCloud don't use local space (cloud icon in Finder).
-
-## Common large directories
-| Directory | What it is | Safe to clean? |
-|---|---|---|
-| `~/Library/Caches/` | App caches | Yes |
-| `~/Library/Developer/Xcode/DerivedData/` | Xcode build artifacts | Yes, but rebuilds needed |
-| `~/Library/Application Support/MobileSync/Backup/` | iOS backups | Only if backed up elsewhere |
-| `~/Library/Containers/com.docker.docker/` | Docker data | Check what images/volumes exist first |
-| `~/Library/Caches/Homebrew/` | Downloaded packages | Yes |
-| `~/.npm/` or `~/.yarn/cache/` | Package manager caches | Yes |
-| `/Library/Updates/` | macOS update downloads | Yes, will re-download |
-| `~/Downloads/` | User downloads | Ask user first |
+## Escalation
+If cleanup doesn't free enough space:
+- The user may genuinely need a larger drive or external storage.
+- Suggest iCloud Drive with "Optimize Mac Storage" to offload files.
+- For developers: Xcode + simulators + Docker can easily consume 100+ GB. These are working files, not waste.
