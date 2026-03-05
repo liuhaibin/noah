@@ -56,6 +56,14 @@ const BUILTIN_PLAYBOOKS: &[(&str, &str)] = &[
         "update-troubleshooting.md",
         include_str!("../playbooks/update-troubleshooting.md"),
     ),
+    (
+        "windows-update-troubleshooting.md",
+        include_str!("../playbooks/windows-update-troubleshooting.md"),
+    ),
+    (
+        "windows-printer-repair.md",
+        include_str!("../playbooks/windows-printer-repair.md"),
+    ),
 ];
 
 // ── Frontmatter parser ─────────────────────────────────────────────────
@@ -304,7 +312,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let registry = PlaybookRegistry::init_for_platform(tmp.path(), "macos").unwrap();
 
-        // All 8 built-in files should exist on disk.
+        // All built-in files should exist on disk.
         for (filename, _) in BUILTIN_PLAYBOOKS {
             assert!(
                 tmp.path().join("playbooks").join(filename).exists(),
@@ -393,6 +401,9 @@ mod tests {
 
         // Should include cross-platform playbook.
         assert!(registry.metas.iter().any(|m| m.name == "outlook-troubleshooting"));
+
+        // Should include windows-specific playbook.
+        assert!(registry.metas.iter().any(|m| m.name == "windows-update-troubleshooting"));
 
         // Should NOT include macos-only playbooks.
         assert!(!registry.metas.iter().any(|m| m.platform == "macos"));
@@ -498,7 +509,7 @@ mod tests {
 
             // Platform must be a known value.
             assert!(
-                ["macos", "windows", "all"].contains(&meta.platform.as_str()),
+                ["macos", "windows", "linux", "all"].contains(&meta.platform.as_str()),
                 "Playbook {} has invalid platform: {}",
                 filename,
                 meta.platform
@@ -625,6 +636,52 @@ mod tests {
                         "Playbook {} references tool `{}` which is not registered",
                         filename,
                         word
+                    );
+                }
+            }
+        }
+    }
+
+    /// Verify that Windows playbooks don't reference `mac_*` tools.
+    #[test]
+    fn test_windows_playbooks_dont_reference_macos_tools() {
+        for (filename, content) in BUILTIN_PLAYBOOKS {
+            let meta = parse_frontmatter(content).unwrap();
+            if meta.platform != "windows" {
+                continue;
+            }
+
+            for cap in content.split('`') {
+                let word = cap.trim();
+                if word.starts_with("mac_")
+                    && word.chars().all(|c| c.is_alphanumeric() || c == '_')
+                {
+                    panic!(
+                        "Windows playbook {} references macOS tool `{}`",
+                        filename, word
+                    );
+                }
+            }
+        }
+    }
+
+    /// Verify that Linux playbooks don't reference `mac_*` or `win_*` tools.
+    #[test]
+    fn test_linux_playbooks_dont_reference_other_platform_tools() {
+        for (filename, content) in BUILTIN_PLAYBOOKS {
+            let meta = parse_frontmatter(content).unwrap();
+            if meta.platform != "linux" {
+                continue;
+            }
+
+            for cap in content.split('`') {
+                let word = cap.trim();
+                if (word.starts_with("mac_") || word.starts_with("win_"))
+                    && word.chars().all(|c| c.is_alphanumeric() || c == '_')
+                {
+                    panic!(
+                        "Linux playbook {} references other-platform tool `{}`",
+                        filename, word
                     );
                 }
             }
