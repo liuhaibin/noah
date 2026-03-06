@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync } from "node:fs";
-import { readdir, readFile, rm } from "node:fs/promises";
+import { readdir, readFile, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
@@ -9,6 +9,7 @@ import { spawn } from "node:child_process";
 const ROOT = process.cwd();
 const TAURI_CONF_PATH = path.join(ROOT, "apps", "desktop", "src-tauri", "tauri.conf.json");
 const BUNDLE_DIR = path.join(ROOT, "target", "release", "bundle");
+const REPO = "xuy/noah";
 
 function usage() {
   console.log(`Usage:
@@ -110,8 +111,11 @@ async function collectArtifacts() {
   const candidates = [
     ["dmg", ".dmg"],
     ["macos", ".tar.gz"],
+    ["macos", ".tar.gz.sig"],
     ["msi", ".msi"],
+    ["msi", ".msi.sig"],
     ["nsis", ".exe"],
+    ["nsis", ".exe.sig"],
     ["deb", ".deb"],
     ["appimage", ".AppImage"],
   ];
@@ -130,6 +134,73 @@ async function collectArtifacts() {
   }
   artifacts.sort();
   return artifacts;
+}
+
+// ── Updater JSON generation ─────────────────────────────────────────────
+// Tauri v2 updater expects a JSON file at the endpoint with this shape:
+// { "version": "X.Y.Z", "pub_date": "...", "platforms": { "<target>": { "url": "...", "signature": "..." } } }
+
+const UPDATER_PLATFORM_MAP = {
+  // [os, arch] → Tauri target key
+  "darwin-arm64": "darwin-aarch64",
+  "darwin-x64": "darwin-x86_64",
+  "win32-x64": "windows-x86_64",
+  "linux-x64": "linux-x86_64",
+};
+
+async function generateLatestJson(version, tag, artifacts) {
+  const target = UPDATER_PLATFORM_MAP[`${process.platform}-${process.arch}`];
+  if (!target) {
+    console.log(`==> Skipping latest.json — unknown platform: ${process.platform}-${process.arch}`);
+    return null;
+  }
+
+  // Find the updater artifact (.tar.gz on Mac, .nsis.zip or .exe on Windows, .AppImage on Linux)
+  // and its corresponding .sig file.
+  let updaterFile = null;
+  let sigFile = null;
+
+  for (const a of artifacts) {
+    const name = path.basename(a);
+    if (process.platform === "darwin" && name.endsWith(".tar.gz") && !name.endsWith(".sig")) {
+      updaterFile = name;
+    } else if (process.platform === "win32" && name.endsWith(".exe") && !name.endsWith(".sig")) {
+      // Tauri v2 NSIS updater uses the .exe directly
+      updaterFile = name;
+    } else if (process.platform === "linux" && name.endsWith(".AppImage") && !name.endsWith(".sig")) {
+      updaterFile = name;
+    }
+    // Collect sig
+    if (name.endsWith(".tar.gz.sig") || name.endsWith(".exe.sig") || name.endsWith(".AppImage.sig")) {
+      sigFile = a;
+    }
+  }
+
+  if (!updaterFile || !sigFile) {
+    console.log(`==> Skipping latest.json — missing updater artifact or signature`);
+    console.log(`    updaterFile: ${updaterFile}, sigFile: ${sigFile}`);
+    return null;
+  }
+
+  const signature = (await readFile(sigFile, "utf8")).trim();
+  const url = `https://github.com/${REPO}/releases/download/${tag}/${updaterFile}`;
+
+  // Try to load existing latest.json to merge platforms from multiple builds
+  const latestPath = path.join(ROOT, "latest.json");
+  let existing = { version, pub_date: new Date().toISOString(), platforms: {} };
+  if (existsSync(latestPath)) {
+    try {
+      existing = JSON.parse(await readFile(latestPath, "utf8"));
+    } catch { /* start fresh */ }
+  }
+
+  existing.version = version;
+  existing.pub_date = new Date().toISOString();
+  existing.platforms[target] = { url, signature };
+
+  await writeFile(latestPath, JSON.stringify(existing, null, 2) + "\n");
+  console.log(`==> Generated latest.json with platform ${target}`);
+  return latestPath;
 }
 
 async function main() {
@@ -179,6 +250,9 @@ async function main() {
     throw new Error("Missing required command: gh");
   }
 
+  // Generate latest.json for the Tauri updater
+  const latestJsonPath = await generateLatestJson(version, tag, artifacts);
+
   console.log(`==> Uploading to GitHub release ${tag}...`);
   let releaseExists = true;
   try {
@@ -188,11 +262,19 @@ async function main() {
   }
 
   if (!releaseExists) {
-    await runCommand("gh", ["release", "create", tag, "--title", `itman ${tag}`, "--generate-notes"]);
+    await runCommand("gh", ["release", "create", tag, "--title", `Noah ${tag}`, "--generate-notes"]);
   }
 
-  await runCommand("gh", ["release", "upload", tag, ...artifacts, "--clobber"]);
+  const toUpload = [...artifacts];
+  if (latestJsonPath) toUpload.push(latestJsonPath);
+
+  await runCommand("gh", ["release", "upload", tag, ...toUpload, "--clobber"]);
   await runCommand("gh", ["release", "view", tag, "--json", "url", "-q", ".url"]);
+
+  // Clean up local latest.json
+  if (latestJsonPath && existsSync(latestJsonPath)) {
+    await rm(latestJsonPath);
+  }
 }
 
 main().catch((error) => {

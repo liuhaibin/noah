@@ -14,3 +14,9 @@ dist/
 # Dev helper scripts (local workflow, not shared)
 run_*.sh
 run_*.ps1
+
+# Transient build artifacts
+latest.json
+
+# Product Roadmap (local research)
+_roadmap/

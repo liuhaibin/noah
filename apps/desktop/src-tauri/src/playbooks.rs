@@ -146,18 +146,32 @@ impl PlaybookRegistry {
         let playbooks_dir = knowledge_dir.join("playbooks");
         std::fs::create_dir_all(&playbooks_dir)?;
 
-        // Always overwrite system playbooks from embedded content so they stay current.
-        // User playbooks (type: user or no frontmatter) are never touched here.
+        // Write system playbooks that match this platform (or "all") to disk.
+        // Wrong-platform playbooks are removed so they don't appear in the
+        // knowledge TOC or confuse the LLM.
         for (filename, content) in BUILTIN_PLAYBOOKS {
             let dest = playbooks_dir.join(filename);
-            // Only skip if the on-disk file is explicitly user-owned.
+
+            // Never overwrite user-owned files.
             let is_user_owned = dest.exists() && std::fs::read_to_string(&dest)
                 .ok()
                 .and_then(|c| parse_frontmatter(&c))
                 .map(|m| m.playbook_type == "user")
                 .unwrap_or(false);
-            if !is_user_owned {
+            if is_user_owned {
+                continue;
+            }
+
+            // Check if this builtin matches the current platform.
+            let matches_platform = parse_frontmatter(content)
+                .map(|m| m.platform == "all" || m.platform == platform)
+                .unwrap_or(true);
+
+            if matches_platform {
                 std::fs::write(&dest, content)?;
+            } else if dest.exists() {
+                // Clean up wrong-platform playbooks from previous versions.
+                let _ = std::fs::remove_file(&dest);
             }
         }
 
@@ -360,16 +374,19 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let registry = PlaybookRegistry::init_for_platform(tmp.path(), "macos").unwrap();
 
-        // All built-in files should exist on disk.
-        for (filename, _) in BUILTIN_PLAYBOOKS {
-            assert!(
-                tmp.path().join("playbooks").join(filename).exists(),
-                "Missing: {}",
-                filename
+        // Only matching-platform files should exist on disk.
+        for (filename, content) in BUILTIN_PLAYBOOKS {
+            let meta = parse_frontmatter(content).unwrap();
+            let should_exist = meta.platform == "all" || meta.platform == "macos";
+            let exists = tmp.path().join("playbooks").join(filename).exists();
+            assert_eq!(
+                exists, should_exist,
+                "File {} exists={} but should_exist={} (platform={})",
+                filename, exists, should_exist, meta.platform
             );
         }
 
-        // But only macos + all playbooks loaded into metas.
+        // Only macos + all playbooks loaded into metas.
         assert!(registry.metas.iter().all(|m| m.platform == "macos" || m.platform == "all"));
     }
 
@@ -423,17 +440,18 @@ mod tests {
     }
 
     #[test]
-    fn test_all_builtin_files_written_regardless_of_platform() {
+    fn test_only_matching_platform_files_written() {
         let tmp = tempfile::tempdir().unwrap();
-        // Even when filtering for Windows, all built-in files should be written to disk
-        // (so switching platforms doesn't lose playbooks).
         let _registry = PlaybookRegistry::init_for_platform(tmp.path(), "windows").unwrap();
 
-        for (filename, _) in BUILTIN_PLAYBOOKS {
-            assert!(
-                tmp.path().join("playbooks").join(filename).exists(),
-                "Missing: {}",
-                filename
+        for (filename, content) in BUILTIN_PLAYBOOKS {
+            let meta = parse_frontmatter(content).unwrap();
+            let should_exist = meta.platform == "all" || meta.platform == "windows";
+            let exists = tmp.path().join("playbooks").join(filename).exists();
+            assert_eq!(
+                exists, should_exist,
+                "File {} exists={} but should_exist={} (platform={})",
+                filename, exists, should_exist, meta.platform
             );
         }
     }
