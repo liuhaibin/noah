@@ -4,6 +4,7 @@ description: Systematic connectivity troubleshooting for Wi-Fi, DNS, and interne
 platform: macos
 last_reviewed: 2026-03-04
 author: noah-team
+type: system
 ---
 
 # Network Diagnostics

@@ -4,6 +4,7 @@ description: Fix stuck Windows Updates, failed installations, and update service
 platform: windows
 last_reviewed: 2026-03-04
 author: noah-team
+type: system
 ---
 
 # Windows Update Troubleshooting

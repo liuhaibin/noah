@@ -4,6 +4,7 @@ description: Find and reclaim disk space from caches, backups, and hidden consum
 platform: macos
 last_reviewed: 2026-03-04
 author: noah-team
+type: system
 ---
 
 # Disk Space Recovery

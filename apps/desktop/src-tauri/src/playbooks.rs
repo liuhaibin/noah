@@ -17,6 +17,8 @@ pub struct PlaybookMeta {
     pub last_reviewed: Option<String>,
     /// Author or last reviewer.
     pub author: Option<String>,
+    /// "system" for built-in playbooks (always refreshed), "user" for user-created ones.
+    pub playbook_type: String,
 }
 
 /// Registry of available playbooks, loaded at startup.
@@ -90,6 +92,7 @@ fn parse_frontmatter(content: &str) -> Option<PlaybookMeta> {
     let mut platform = None;
     let mut last_reviewed = None;
     let mut author = None;
+    let mut playbook_type = None;
 
     for line in yaml_block.lines() {
         let line = line.trim();
@@ -103,6 +106,8 @@ fn parse_frontmatter(content: &str) -> Option<PlaybookMeta> {
             last_reviewed = Some(val.trim().to_string());
         } else if let Some(val) = line.strip_prefix("author:") {
             author = Some(val.trim().to_string());
+        } else if let Some(val) = line.strip_prefix("type:") {
+            playbook_type = Some(val.trim().to_string());
         }
     }
 
@@ -112,6 +117,7 @@ fn parse_frontmatter(content: &str) -> Option<PlaybookMeta> {
         platform: platform.unwrap_or_else(|| "all".to_string()),
         last_reviewed,
         author,
+        playbook_type: playbook_type.unwrap_or_else(|| "user".to_string()),
     })
 }
 
@@ -140,10 +146,17 @@ impl PlaybookRegistry {
         let playbooks_dir = knowledge_dir.join("playbooks");
         std::fs::create_dir_all(&playbooks_dir)?;
 
-        // Write built-in playbooks if they don't already exist (preserves user edits).
+        // Always overwrite system playbooks from embedded content so they stay current.
+        // User playbooks (type: user or no frontmatter) are never touched here.
         for (filename, content) in BUILTIN_PLAYBOOKS {
             let dest = playbooks_dir.join(filename);
-            if !dest.exists() {
+            // Only skip if the on-disk file is explicitly user-owned.
+            let is_user_owned = dest.exists() && std::fs::read_to_string(&dest)
+                .ok()
+                .and_then(|c| parse_frontmatter(&c))
+                .map(|m| m.playbook_type == "user")
+                .unwrap_or(false);
+            if !is_user_owned {
                 std::fs::write(&dest, content)?;
             }
         }
@@ -174,36 +187,67 @@ impl PlaybookRegistry {
         })
     }
 
-    /// Read the full content of a playbook by name or filename stem.
+    /// Read a playbook by name or filename stem, merging system + user tracks when both exist.
     ///
-    /// Matching order:
-    /// 1. YAML frontmatter `name:` field (built-in playbooks).
-    /// 2. File stem (e.g. `"app-doctor"` matches `app-doctor.md`) — for user-written
-    ///    playbooks saved via `write_knowledge` that have no frontmatter.
+    /// Matching: frontmatter `name:` field first, then filename stem for user-written entries.
+    ///
+    /// If both a `type: system` and a `type: user` version match the same name, both are
+    /// returned concatenated with origin/date annotations so the LLM can draw from both.
     fn read_playbook(&self, name: &str) -> Result<String> {
+        struct Match {
+            content: String,
+            playbook_type: String,
+            date: Option<String>,
+        }
+
+        let mut matches: Vec<Match> = Vec::new();
+
         let entries = std::fs::read_dir(&self.playbooks_dir)?;
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().is_some_and(|ext| ext == "md") {
-                if let Ok(content) = std::fs::read_to_string(&path) {
-                    // 1. Frontmatter name match.
-                    if let Some(meta) = parse_frontmatter(&content) {
-                        if meta.name == name {
-                            return Ok(content);
-                        }
-                    }
-                    // 2. Filename stem match (e.g. user-written "app-repair.md").
-                    if path.file_stem().map(|s| s.to_string_lossy() == name).unwrap_or(false) {
-                        return Ok(content);
-                    }
-                }
+            if !path.extension().is_some_and(|ext| ext == "md") {
+                continue;
+            }
+            let Ok(content) = std::fs::read_to_string(&path) else { continue };
+
+            let name_matches = parse_frontmatter(&content)
+                .map(|m| m.name == name)
+                .unwrap_or(false)
+                || path.file_stem().map(|s| s.to_string_lossy() == name).unwrap_or(false);
+
+            if name_matches {
+                let meta = parse_frontmatter(&content);
+                let playbook_type = meta.as_ref()
+                    .map(|m| m.playbook_type.clone())
+                    .unwrap_or_else(|| "user".to_string());
+                let date = meta.and_then(|m| m.last_reviewed);
+                matches.push(Match { content, playbook_type, date });
             }
         }
 
-        anyhow::bail!(
-            "Playbook '{}' not found. Use `list_knowledge` with category 'playbooks' to see what's available.",
-            name
-        )
+        if matches.is_empty() {
+            anyhow::bail!(
+                "Playbook '{}' not found. Use `list_knowledge` with category 'playbooks' to see what's available.",
+                name
+            );
+        }
+
+        if matches.len() == 1 {
+            return Ok(matches.remove(0).content);
+        }
+
+        // Multiple matches (system + user): concatenate with origin annotations.
+        // System first, then user.
+        matches.sort_by(|a, b| a.playbook_type.cmp(&b.playbook_type).reverse()); // "user" < "system"
+        let mut parts: Vec<String> = Vec::new();
+        for m in &matches {
+            let date_str = m.date.as_deref().unwrap_or("unknown date");
+            parts.push(format!(
+                "<!-- [origin: {}, last updated: {}] -->\n{}",
+                m.playbook_type, date_str, m.content
+            ));
+        }
+        Ok(parts.join("\n\n---\n\n"))
     }
 }
 
@@ -273,6 +317,14 @@ mod tests {
         assert_eq!(meta.name, "test-playbook");
         assert_eq!(meta.description, "A test playbook");
         assert_eq!(meta.platform, "all"); // default
+        assert_eq!(meta.playbook_type, "user"); // default when type: absent
+    }
+
+    #[test]
+    fn test_parse_frontmatter_system_type() {
+        let content = "---\nname: net\ndescription: Net diag\nplatform: macos\ntype: system\n---\n\n# Body";
+        let meta = parse_frontmatter(content).unwrap();
+        assert_eq!(meta.playbook_type, "system");
     }
 
     #[test]
@@ -322,26 +374,37 @@ mod tests {
     }
 
     #[test]
-    fn test_bootstrap_preserves_existing() {
+    fn test_bootstrap_always_refreshes_system_playbooks() {
         let tmp = tempfile::tempdir().unwrap();
         let playbooks_dir = tmp.path().join("playbooks");
         std::fs::create_dir_all(&playbooks_dir).unwrap();
 
-        // Write a modified version of a built-in playbook.
-        let custom_content =
-            "---\nname: network-diagnostics\ndescription: Custom version\nplatform: macos\n---\n\n# Custom";
-        std::fs::write(
-            playbooks_dir.join("network-diagnostics.md"),
-            custom_content,
-        )
-        .unwrap();
+        // Pre-write a stale/modified system playbook (type: system on disk).
+        let stale = "---\nname: network-diagnostics\ndescription: Stale version\nplatform: macos\ntype: system\n---\n\n# Stale";
+        std::fs::write(playbooks_dir.join("network-diagnostics.md"), stale).unwrap();
 
         let _registry = PlaybookRegistry::init_for_platform(tmp.path(), "macos").unwrap();
 
-        // The custom version should be preserved.
-        let content =
-            std::fs::read_to_string(playbooks_dir.join("network-diagnostics.md")).unwrap();
-        assert!(content.contains("Custom version"));
+        // System file should be overwritten with the current embedded content.
+        let content = std::fs::read_to_string(playbooks_dir.join("network-diagnostics.md")).unwrap();
+        assert!(!content.contains("Stale version"), "System playbook was not refreshed");
+        assert!(content.contains("type: system"));
+    }
+
+    #[test]
+    fn test_bootstrap_preserves_user_owned_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let playbooks_dir = tmp.path().join("playbooks");
+        std::fs::create_dir_all(&playbooks_dir).unwrap();
+
+        // A file with the same name as a built-in but marked type: user — must not be overwritten.
+        let user_version = "---\nname: network-diagnostics\ndescription: My custom version\nplatform: macos\ntype: user\n---\n\n# My custom";
+        std::fs::write(playbooks_dir.join("network-diagnostics.md"), user_version).unwrap();
+
+        let _registry = PlaybookRegistry::init_for_platform(tmp.path(), "macos").unwrap();
+
+        let content = std::fs::read_to_string(playbooks_dir.join("network-diagnostics.md")).unwrap();
+        assert!(content.contains("My custom version"), "User-owned file was overwritten");
     }
 
     #[test]
@@ -457,6 +520,28 @@ mod tests {
     }
 
     #[test]
+    fn test_read_playbook_dual_track_concatenation() {
+        // Both a system and a user version of the same playbook → both returned, annotated.
+        let tmp = tempfile::tempdir().unwrap();
+        let playbooks_dir = tmp.path().join("playbooks");
+        std::fs::create_dir_all(&playbooks_dir).unwrap();
+
+        let system_pb = "---\nname: wifi-fix\ndescription: System wifi fix\nplatform: all\nlast_reviewed: 2026-01-01\nauthor: noah-team\ntype: system\n---\n\n# System steps";
+        let user_pb   = "---\nname: wifi-fix\ndescription: My notes\nplatform: all\ntype: user\n---\n\n# My extra steps";
+        std::fs::write(playbooks_dir.join("wifi-fix.md"), system_pb).unwrap();
+        std::fs::write(playbooks_dir.join("wifi-fix-user.md"), user_pb).unwrap();
+
+        let registry = PlaybookRegistry::init_for_platform(tmp.path(), "all").unwrap();
+        let content = registry.read_playbook("wifi-fix").unwrap();
+
+        assert!(content.contains("System steps"), "System content missing");
+        assert!(content.contains("My extra steps"), "User content missing");
+        assert!(content.contains("origin: system"));
+        assert!(content.contains("origin: user"));
+        assert!(content.contains("2026-01-01"), "Date annotation missing");
+    }
+
+    #[test]
     fn test_every_builtin_playbook_individually_loadable() {
         let tmp = tempfile::tempdir().unwrap();
         // Use "all" as platform so every playbook passes the filter.
@@ -485,6 +570,13 @@ mod tests {
                 "Playbook {} has invalid platform: {}",
                 filename,
                 meta.platform
+            );
+
+            // All built-ins must declare type: system.
+            assert_eq!(
+                meta.playbook_type, "system",
+                "Built-in playbook {} is missing 'type: system' in frontmatter",
+                filename
             );
         }
     }
