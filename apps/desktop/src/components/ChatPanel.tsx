@@ -119,44 +119,78 @@ const ACTION_LABELS: Record<string, string> = {
   list_knowledge: "Listed notes",
 };
 
-/** Map common shell commands to human-readable descriptions. */
+// Word-boundary (\b) patterns match regardless of cd/sudo/sleep/pipe prefixes.
+// Order matters — more specific patterns must come before general ones.
 const SHELL_PATTERNS: [RegExp, string][] = [
-  [/^uptime/, "Checked how long the computer has been running"],
-  [/^(top|ps\b|activity)/, "Checked running processes"],
-  [/^(df|diskutil|du)\b/, "Checked disk space"],
-  [/^(ifconfig|networksetup|ipconfig|scutil)\b/, "Checked network settings"],
-  [/^(ping|arping)\s/, "Tested network connection"],
-  [/^(nslookup|dig|host)\s/, "Looked up DNS records"],
-  [/^traceroute\s/, "Traced network route"],
-  [/^(curl|wget)\s/, "Fetched data from the web"],
-  [/^(cat|less|more|head|tail)\s/, "Read a file"],
-  [/^ls\b/, "Listed files"],
-  [/^(mkdir|mktemp)\b/, "Created a folder"],
-  [/^(cp|rsync)\b/, "Copied files"],
-  [/^(mv)\b/, "Moved files"],
-  [/^(chmod|chown|icacls)\b/, "Changed file permissions"],
-  [/^(killall|taskkill)\s+(.+)/, "Stopped $2"],
-  [/^(launchctl|systemctl)\b/, "Managed system services"],
-  [/^(defaults)\s+(read|write)\s+(.+)/, "Changed system preferences"],
-  [/^(defaults)\s+read\b/, "Checked system preferences"],
-  [/^(brew|apt|yum|choco|winget|scoop)\s+install\b/, "Installed software"],
-  [/^(brew|apt|yum|choco|winget|scoop)\s+upgrade\b/, "Updated software"],
-  [/^(brew|apt|yum|choco|winget|scoop)\s+(list|info)\b/, "Checked installed software"],
-  [/^(softwareupdate|wuauclt)\b/, "Checked for system updates"],
-  [/^(open|start)\s/, "Opened an application"],
-  [/^(pmset|powercfg)\b/, "Checked power settings"],
-  [/^(sysctl|system_profiler|systeminfo)\b/, "Checked system information"],
-  [/^(sw_vers|ver|winver)\b/, "Checked OS version"],
-  [/^(lsof)\b/, "Checked open files and connections"],
-  [/^(netstat|ss)\b/, "Checked network connections"],
-  [/^(mdutil|mdfind)\b/, "Checked Spotlight indexing"],
-  [/^(tmutil)\b/, "Checked Time Machine"],
-  [/^(spctl|csrutil)\b/, "Checked security settings"],
-  [/^(dscacheutil)\b/, "Checked directory cache"],
-  [/^(log\s+show|journalctl)\b/, "Read system logs"],
-  [/^(wmic|Get-WmiObject|Get-CimInstance)/, "Checked system details"],
-  [/^(netsh)\b/, "Checked network configuration"],
-  [/^(sfc|DISM|chkdsk)\b/i, "Ran system repair tool"],
+  // ── System status ──
+  [/uptime/, "Checked how long the computer has been running"],
+  [/\b(top|ps)\b/, "Checked running processes"],
+  [/\b(sw_vers|winver)\b/, "Checked OS version"],
+  [/\bsystem_profiler\b/, "Checked system information"],
+  [/\b(sysctl|systeminfo)\b/, "Checked system parameters"],
+  [/\b(pmset|powercfg)\b/, "Checked power settings"],
+
+  // ── Disk & files ──
+  [/\bdf\b/, "Checked disk space"],
+  [/\bdu\s/, "Checked folder size"],
+  [/\bdiskutil\s+unmount\b/, "Ejected a disk"],
+  [/\bdiskutil\b/, "Checked disk information"],
+  [/\bfind\b.*-exec\s+(mv|cp)\b/, "Organized files"],
+  [/\bfind\b/, "Searched for files"],
+  [/\b(cat|less|more|head|tail)\s/, "Read a file"],
+  [/\bls\b/, "Listed files"],
+  [/\bmkdir\b/, "Created folders"],
+  [/\b(cp|rsync)\b/, "Copied files"],
+  [/\bmv\b/, "Moved files"],
+  [/\b(chmod|chown|icacls)\b/, "Changed file permissions"],
+  [/\brm\s/, "Cleaned up files"],
+
+  // ── Network ──
+  [/\bnetworksetup\s+-setairportnetwork\b/, "Connected to a WiFi network"],
+  [/\bnetworksetup\s+-scan\b/, "Scanned for WiFi networks"],
+  [/\bnetworksetup\b/, "Checked network settings"],
+  [/\b(ifconfig|ipconfig|scutil)\b/, "Checked network settings"],
+  [/\bwdutil\b/, "Checked WiFi diagnostics"],
+  [/\b(ping|arping)\s/, "Tested network connection"],
+  [/\b(nslookup|dig|host)\s/, "Looked up DNS records"],
+  [/\btraceroute\s/, "Traced network route"],
+  [/\b(curl|wget)\s/, "Fetched data from the web"],
+  [/\blsof\b/, "Checked open files and connections"],
+  [/\b(netstat|ss)\b/, "Checked network connections"],
+  [/\bnetsh\b/, "Checked network configuration"],
+  [/\btailscale\b/, "Checked VPN status"],
+
+  // ── Printing ──
+  [/\blpr\s/, "Sent a file to the printer"],
+  [/\b(lpstat|lpoptions|lpq)\b/, "Checked printer status"],
+
+  // ── Processes & apps ──
+  [/\b(killall|taskkill)\s+(\S+)/, "Stopped $2"],
+  [/\bpkill\b/, "Stopped a process"],
+  [/\bopen\s+.*systempreferences/, "Opened System Settings"],
+  [/\bopen\s+-a\s+(\S+)/, "Opened $1"],
+  [/\b(open|start)\s/, "Opened a file"],
+
+  // ── Services & preferences ──
+  [/\b(launchctl|systemctl)\b/, "Managed system services"],
+  [/\bdefaults\s+write\b/, "Changed system preferences"],
+  [/\bdefaults\s+read\b/, "Checked system preferences"],
+
+  // ── Package managers ──
+  [/\b(brew|apt|yum|choco|winget|scoop)\s+install\b/, "Installed software"],
+  [/\b(brew|apt|yum|choco|winget|scoop)\s+upgrade\b/, "Updated software"],
+  [/\b(brew|apt|yum|choco|winget|scoop)\s+(list|info)\b/, "Checked installed software"],
+  [/\b(npm|yarn|pnpm)\s+cache\s+clean\b/, "Cleared package cache"],
+  [/\bsoftwareupdate\b/, "Checked for system updates"],
+
+  // ── Security & system tools ──
+  [/\b(spctl|csrutil)\b/, "Checked security settings"],
+  [/\b(mdutil|mdfind)\b/, "Checked Spotlight indexing"],
+  [/\btmutil\b/, "Checked Time Machine"],
+  [/\bdscacheutil\b/, "Checked directory cache"],
+  [/\b(log\s+show|journalctl)\b/, "Read system logs"],
+  [/\b(wmic|Get-WmiObject|Get-CimInstance)/, "Checked system details"],
+  [/\b(sfc|DISM|chkdsk)\b/i, "Ran system repair tool"],
 ];
 
 /** Extract a human-friendly label from a shell command string. */
