@@ -87,7 +87,7 @@ export function ChangeLog() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-primary">
           <h2 className="text-sm font-semibold text-text-primary">
-            Change Log
+            Action Log
           </h2>
           <button
             onClick={() => setChangeLogOpen(false)}
@@ -130,9 +130,9 @@ export function ChangeLog() {
                 />
               </svg>
               <p className="text-xs text-center">
-                No changes made yet.
+                No actions taken yet.
                 <br />
-                Changes will appear here as the assistant works.
+                Actions will appear here as the assistant works.
               </p>
             </div>
           ) : (
@@ -149,7 +149,7 @@ export function ChangeLog() {
         {changes.length > 0 && (
           <div className="px-4 py-2.5 border-t border-border-primary">
             <p className="text-[10px] text-text-muted">
-              {changes.length} change{changes.length !== 1 ? "s" : ""} total
+              {changes.length} action{changes.length !== 1 ? "s" : ""} total
               {" \u00B7 "}
               {changes.filter((c) => c.undone).length} undone
             </p>

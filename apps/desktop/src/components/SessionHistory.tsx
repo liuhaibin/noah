@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 import { useSession } from "../hooks/useSession";
 import * as commands from "../lib/tauri-commands";
@@ -37,29 +37,139 @@ function formatDuration(created: string, ended: string | null): string {
   return `${minutes}m ${seconds}s`;
 }
 
-function StatusBadge({ session }: { session: SessionRecord }) {
+function StatusIndicator({ session }: { session: SessionRecord }) {
   if (session.resolved === true) {
     return (
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-accent-green/15 text-accent-green">
-        {"\u2713"} Resolved
-      </span>
-    );
-  }
-  if (session.resolved === false) {
-    return (
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-accent-yellow/15 text-accent-yellow">
-        Unresolved
-      </span>
-    );
-  }
-  if (!session.ended_at) {
-    return (
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-accent-blue/15 text-accent-blue">
-        Active
+      <span className="text-accent-green flex-shrink-0" title="Resolved">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path
+            d="M3.5 7.5L5.5 9.5L10.5 4.5"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </span>
     );
   }
   return null;
+}
+
+function OverflowMenu({
+  session,
+  onResolveToggle,
+  onExport,
+  onDelete,
+}: {
+  session: SessionRecord;
+  onResolveToggle: () => void;
+  onExport: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setConfirmDelete(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(!open);
+          setConfirmDelete(false);
+        }}
+        className="w-6 h-6 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-bg-tertiary transition-colors cursor-pointer"
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <circle cx="2" cy="6" r="1.2" fill="currentColor" />
+          <circle cx="6" cy="6" r="1.2" fill="currentColor" />
+          <circle cx="10" cy="6" r="1.2" fill="currentColor" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-40 bg-bg-secondary border border-border-primary rounded-lg shadow-xl z-50 py-1 overflow-hidden">
+          {/* Mark resolved (only when not already resolved) */}
+          {session.resolved !== true && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onResolveToggle();
+                setOpen(false);
+              }}
+              className="w-full px-3 py-1.5 text-left text-[11px] text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+            >
+              Mark resolved
+            </button>
+          )}
+
+          {/* Export */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onExport();
+              setOpen(false);
+            }}
+            className="w-full px-3 py-1.5 text-left text-[11px] text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+          >
+            Export
+          </button>
+
+          {/* Delete */}
+          <div className="border-t border-border-primary mt-1 pt-1">
+            {confirmDelete ? (
+              <div className="flex items-center gap-2 px-3 py-1.5">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                    setOpen(false);
+                    setConfirmDelete(false);
+                  }}
+                  className="text-[11px] text-accent-red font-medium cursor-pointer hover:underline"
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDelete(false);
+                  }}
+                  className="text-[11px] text-text-muted cursor-pointer hover:underline"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmDelete(true);
+                }}
+                className="w-full px-3 py-1.5 text-left text-[11px] text-accent-red hover:bg-bg-tertiary transition-colors cursor-pointer"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function SessionItem({
@@ -67,108 +177,75 @@ function SessionItem({
   onSelect,
   onExport,
   onDelete,
-  onViewChanges,
+  onViewActions,
+  onResolveToggle,
 }: {
   session: SessionRecord;
   onSelect: (sessionId: string) => void;
   onExport: (sessionId: string, title: string) => void;
   onDelete: (sessionId: string) => void;
-  onViewChanges: (sessionId: string) => void;
+  onViewActions: (sessionId: string) => void;
+  onResolveToggle: (sessionId: string, resolved: boolean) => void;
 }) {
   const duration = formatDuration(session.created_at, session.ended_at);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div className="border-b border-border-primary last:border-b-0">
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => onSelect(session.id)}
+        onKeyDown={(e) => { if (e.key === "Enter") onSelect(session.id); }}
         className="w-full px-4 py-3 text-left hover:bg-bg-tertiary/50 transition-colors cursor-pointer"
       >
-        {/* Title row */}
+        {/* Row 1: Title + status indicator */}
         <div className="flex items-center gap-2 min-w-0">
           <p className="text-sm text-text-primary leading-snug truncate flex-1 min-w-0">
             {session.title || "Untitled session"}
           </p>
-          <StatusBadge session={session} />
+          <StatusIndicator session={session} />
         </div>
 
-        {/* Meta row */}
-        <div className="flex items-center gap-2 mt-1">
+        {/* Row 2: Date, duration, actions count, overflow menu */}
+        <div className="flex items-center gap-2 mt-1.5">
           <span className="text-[10px] text-text-muted">
             {formatDate(session.created_at)}
           </span>
           {duration && (
-            <span className="text-[10px] text-text-muted">{duration}</span>
-          )}
-        </div>
-
-        {/* Stats + actions row */}
-        <div className="flex items-center gap-3 mt-1">
-          {session.message_count > 0 && (
-            <span className="text-[10px] text-text-muted">
-              {session.message_count} msg{session.message_count !== 1 ? "s" : ""}
-            </span>
+            <>
+              <span className="text-[10px] text-text-muted/40">·</span>
+              <span className="text-[10px] text-text-muted">{duration}</span>
+            </>
           )}
           {session.change_count > 0 && (
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewChanges(session.id);
-              }}
-              className="text-[10px] text-accent-purple hover:text-accent-purple/80 hover:underline cursor-pointer"
-            >
-              {session.change_count} change
-              {session.change_count !== 1 ? "s" : ""}
-            </span>
+            <>
+              <span className="text-[10px] text-text-muted/40">·</span>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewActions(session.id);
+                }}
+                className="text-[10px] text-accent-purple hover:text-accent-purple/80 hover:underline cursor-pointer"
+              >
+                {session.change_count} action
+                {session.change_count !== 1 ? "s" : ""}
+              </span>
+            </>
           )}
-          <span className="ml-auto flex items-center gap-2">
-            {session.ended_at && (
-              <span
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onExport(session.id, session.title || "session");
-                }}
-                className="text-[10px] text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-              >
-                Export
-              </span>
-            )}
-            {confirmDelete ? (
-              <>
-                <span
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(session.id);
-                    setConfirmDelete(false);
-                  }}
-                  className="text-[10px] text-accent-red font-medium cursor-pointer"
-                >
-                  Confirm
-                </span>
-                <span
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setConfirmDelete(false);
-                  }}
-                  className="text-[10px] text-text-muted cursor-pointer"
-                >
-                  Cancel
-                </span>
-              </>
-            ) : (
-              <span
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setConfirmDelete(true);
-                }}
-                className="text-[10px] text-text-muted hover:text-accent-red transition-colors cursor-pointer"
-              >
-                Delete
-              </span>
-            )}
+          <span className="ml-auto">
+            <OverflowMenu
+              session={session}
+              onResolveToggle={() =>
+                onResolveToggle(session.id, session.resolved !== true)
+              }
+              onExport={() =>
+                onExport(session.id, session.title || "session")
+              }
+              onDelete={() => onDelete(session.id)}
+            />
           </span>
         </div>
-      </button>
+      </div>
     </div>
   );
 }
@@ -223,6 +300,22 @@ export function SessionHistory() {
     [pastSessions, setPastSessions],
   );
 
+  const handleResolveToggle = useCallback(
+    async (sessionId: string, resolved: boolean) => {
+      try {
+        await commands.markResolved(sessionId, resolved);
+        setPastSessions(
+          pastSessions.map((s) =>
+            s.id === sessionId ? { ...s, resolved } : s,
+          ),
+        );
+      } catch (err) {
+        console.error("Failed to update session:", err);
+      }
+    },
+    [pastSessions, setPastSessions],
+  );
+
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
       await switchToProblem(sessionId);
@@ -231,14 +324,14 @@ export function SessionHistory() {
     [switchToProblem, setHistoryOpen],
   );
 
-  const handleViewChanges = useCallback(
+  const handleViewActions = useCallback(
     async (sessionId: string) => {
       try {
         const changes = await commands.getChanges(sessionId);
         setChanges(changes);
         setChangeLogOpen(true);
       } catch (err) {
-        console.error("Failed to load changes:", err);
+        console.error("Failed to load actions:", err);
       }
     },
     [setChanges, setChangeLogOpen],
@@ -329,7 +422,8 @@ export function SessionHistory() {
                   onSelect={handleSelectSession}
                   onExport={handleExport}
                   onDelete={handleDelete}
-                  onViewChanges={handleViewChanges}
+                  onViewActions={handleViewActions}
+                  onResolveToggle={handleResolveToggle}
                 />
               ))}
             </div>

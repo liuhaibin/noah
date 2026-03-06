@@ -97,44 +97,42 @@ beforeEach(() => {
 // ── SessionBar ───────────────────────────────────────────────────────────────
 
 describe("SessionBar", () => {
-  it("hides Changes button when there are no changes", () => {
+  it("hides Actions button when there are no actions", () => {
     render(<SessionBar session={mockSession} />);
-    // queryByTitle returns null when not found — that's the assertion
-    expect(screen.queryByTitle("Changes made to your system")).toBeNull();
+    expect(screen.queryByText(/Actions/)).toBeNull();
   });
 
-  it("shows Changes button with correct count when changes exist", () => {
+  it("shows Actions button with correct count when actions exist", () => {
     useSessionStore.setState({ changes: [CHANGE] });
     render(<SessionBar session={mockSession} />);
-    // getByText throws if not found — absence of throw is the assertion
-    screen.getByText("Changes (1)");
+    screen.getByText("Actions (1)");
   });
 
-  it("shows plural count for multiple changes", () => {
+  it("shows plural count for multiple actions", () => {
     useSessionStore.setState({ changes: [CHANGE, { ...CHANGE, id: "c2" }] });
     render(<SessionBar session={mockSession} />);
-    screen.getByText("Changes (2)");
+    screen.getByText("Actions (2)");
   });
 
-  it("opens ChangeLog when Changes button is clicked", async () => {
+  it("opens ChangeLog when Actions button is clicked", async () => {
     useSessionStore.setState({ changes: [CHANGE] });
     render(<SessionBar session={mockSession} />);
-    await userEvent.click(screen.getByTitle("Changes made to your system"));
+    await userEvent.click(screen.getByText("Actions (1)"));
     expect(useSessionStore.getState().changeLogOpen).toBe(true);
   });
 
   it("applies active style when changeLogOpen is true", () => {
     useSessionStore.setState({ changes: [CHANGE], changeLogOpen: true });
     render(<SessionBar session={mockSession} />);
-    const btn = screen.getByTitle("Changes made to your system");
-    expect(btn.className).toContain("bg-accent-green");
+    const btn = screen.getByText("Actions (1)").closest("button")!;
+    expect(btn.className).toContain("bg-accent");
   });
 });
 
 // ── ChangesBlock (tested through ChatPanel) ──────────────────────────────────
 
 describe("ChangesBlock", () => {
-  it("renders collapsed with change count when message has changeIds", async () => {
+  it("renders collapsed with action count when message has changeIds", async () => {
     useSessionStore.setState({ changes: [CHANGE] });
     useChatStore.setState({
       messages: [
@@ -148,7 +146,7 @@ describe("ChangesBlock", () => {
       ],
     });
     render(<ChatPanel />);
-    await screen.findByText("1 change made");
+    await screen.findByText("1 action taken");
   });
 
   it("expands to show tool_name and description when clicked", async () => {
@@ -165,12 +163,12 @@ describe("ChangesBlock", () => {
       ],
     });
     render(<ChatPanel />);
-    await userEvent.click(await screen.findByText("1 change made"));
+    await userEvent.click(await screen.findByText("1 action taken"));
     screen.getByText("mac_flush_dns");
     screen.getByText("Flushed DNS cache");
   });
 
-  it("shows plural label for multiple changes", async () => {
+  it("shows plural label for multiple actions", async () => {
     const change2: ChangeEntry = {
       ...CHANGE,
       id: "c2",
@@ -190,7 +188,7 @@ describe("ChangesBlock", () => {
       ],
     });
     render(<ChatPanel />);
-    await screen.findByText("2 changes made");
+    await screen.findByText("2 actions taken");
   });
 
   it("does not render when changeIds do not match any store changes", async () => {
@@ -228,14 +226,14 @@ describe("ChangesBlock", () => {
   });
 });
 
-// ── SessionHistory changes badge ─────────────────────────────────────────────
+// ── SessionHistory actions badge ─────────────────────────────────────────────
 
-describe("SessionHistory changes badge", () => {
-  it("renders a clickable N changes badge for sessions with changes", async () => {
+describe("SessionHistory actions badge", () => {
+  it("renders a clickable N actions badge for sessions with actions", async () => {
     vi.mocked(commands.listSessions).mockResolvedValue([SESSION_WITH_CHANGES]);
     useSessionStore.setState({ historyOpen: true });
     render(<SessionHistory />);
-    await screen.findByText("2 changes");
+    await screen.findByText("2 actions");
   });
 
   it("calls getChanges with the session id when badge is clicked", async () => {
@@ -243,7 +241,7 @@ describe("SessionHistory changes badge", () => {
     vi.mocked(commands.getChanges).mockResolvedValue([CHANGE]);
     useSessionStore.setState({ historyOpen: true });
     render(<SessionHistory />);
-    await userEvent.click(await screen.findByText("2 changes"));
+    await userEvent.click(await screen.findByText("2 actions"));
     expect(commands.getChanges).toHaveBeenCalledWith("s1");
   });
 
@@ -252,19 +250,19 @@ describe("SessionHistory changes badge", () => {
     vi.mocked(commands.getChanges).mockResolvedValue([CHANGE]);
     useSessionStore.setState({ historyOpen: true });
     render(<SessionHistory />);
-    await userEvent.click(await screen.findByText("2 changes"));
+    await userEvent.click(await screen.findByText("2 actions"));
     await waitFor(() => {
       expect(useSessionStore.getState().changeLogOpen).toBe(true);
       expect(useSessionStore.getState().changes).toEqual([CHANGE]);
     });
   });
 
-  it("does not render a badge for sessions with zero changes", async () => {
+  it("does not render a badge for sessions with zero actions", async () => {
     const noChanges: SessionRecord = { ...SESSION_WITH_CHANGES, change_count: 0 };
     vi.mocked(commands.listSessions).mockResolvedValue([noChanges]);
     useSessionStore.setState({ historyOpen: true });
     render(<SessionHistory />);
     await screen.findByText("Fixed DNS");
-    expect(screen.queryByText(/change/)).toBeNull();
+    expect(screen.queryByText(/action/)).toBeNull();
   });
 });

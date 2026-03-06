@@ -82,7 +82,7 @@ function ChangesBlock({ changeIds }: { changeIds: string[] }) {
           <path d="M8.5 1.5L12.5 5.5L5 13H1V9L8.5 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
         </svg>
         <span className="text-accent-purple font-medium">
-          {matched.length} change{matched.length !== 1 ? "s" : ""} made
+          {matched.length} action{matched.length !== 1 ? "s" : ""} taken
         </span>
         <span className="text-text-muted ml-auto">
           {expanded ? "\u25B4" : "\u25BE"}
