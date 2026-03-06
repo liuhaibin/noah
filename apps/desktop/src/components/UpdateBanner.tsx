@@ -5,7 +5,6 @@ import { relaunch } from "@tauri-apps/plugin-process";
 export function UpdateBanner() {
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "downloading" | "installing" | "done" | "error">("idle");
-  const [progress, setProgress] = useState(0);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -38,16 +37,11 @@ export function UpdateBanner() {
 
   const handleInstall = async () => {
     setStatus("downloading");
-    setProgress(0);
     try {
       const update = await check();
       if (update?.available) {
         await update.downloadAndInstall((event) => {
-          if (event.event === "Started" && event.data.contentLength) {
-            setProgress(0);
-          } else if (event.event === "Progress") {
-            setProgress((prev) => prev + (event.data.chunkLength ?? 0));
-          } else if (event.event === "Finished") {
+          if (event.event === "Finished") {
             setStatus("installing");
           }
         });
