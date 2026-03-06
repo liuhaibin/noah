@@ -71,35 +71,35 @@ const ACTION_LABELS: Record<string, string> = {
   mac_ping: "Tested connectivity",
   mac_dns_check: "Checked DNS",
   mac_http_check: "Tested web access",
-  mac_flush_dns: "Flushed DNS cache",
+  mac_flush_dns: "Flushed DNS",
   mac_system_info: "Checked system info",
   mac_system_summary: "Ran diagnostics",
-  mac_process_list: "Listed processes",
+  mac_process_list: "Checked processes",
   mac_disk_usage: "Checked disk space",
   mac_printer_list: "Checked printers",
   mac_print_queue: "Checked print queue",
-  mac_app_list: "Listed applications",
+  mac_app_list: "Listed apps",
   mac_app_logs: "Read app logs",
   mac_read_file: "Read a file",
   mac_read_log: "Read logs",
   mac_kill_process: "Stopped a process",
   mac_clear_caches: "Cleared caches",
   mac_clear_app_cache: "Cleared app cache",
-  mac_restart_cups: "Restarted print service",
+  mac_restart_cups: "Restarted printing",
   mac_cancel_print_jobs: "Cancelled print jobs",
   mac_move_file: "Moved a file",
   win_network_info: "Checked network",
   win_ping: "Tested connectivity",
   win_dns_check: "Checked DNS",
   win_http_check: "Tested web access",
-  win_flush_dns: "Flushed DNS cache",
+  win_flush_dns: "Flushed DNS",
   win_system_info: "Checked system info",
   win_system_summary: "Ran diagnostics",
-  win_process_list: "Listed processes",
+  win_process_list: "Checked processes",
   win_disk_usage: "Checked disk space",
   win_printer_list: "Checked printers",
   win_print_queue: "Checked print queue",
-  win_app_list: "Listed applications",
+  win_app_list: "Listed apps",
   win_app_logs: "Read app logs",
   win_app_data_ls: "Browsed app data",
   win_read_file: "Read a file",
@@ -107,7 +107,7 @@ const ACTION_LABELS: Record<string, string> = {
   win_kill_process: "Stopped a process",
   win_clear_caches: "Cleared caches",
   win_clear_app_cache: "Cleared app cache",
-  win_restart_spooler: "Restarted print service",
+  win_restart_spooler: "Restarted printing",
   win_cancel_print_jobs: "Cancelled print jobs",
   win_move_file: "Moved a file",
   win_startup_programs: "Checked startup programs",
@@ -120,21 +120,18 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 // Word-boundary (\b) patterns match regardless of cd/sudo/sleep/pipe prefixes.
-// Order matters — more specific patterns must come before general ones.
+// Keep labels SHORT — 2-4 words. Order matters (specific before general).
 const SHELL_PATTERNS: [RegExp, string][] = [
-  // ── System status ──
-  [/uptime/, "Checked how long the computer has been running"],
-  [/\b(top|ps)\b/, "Checked running processes"],
+  [/uptime/, "Checked uptime"],
+  [/\b(top|ps)\b/, "Checked processes"],
   [/\b(sw_vers|winver)\b/, "Checked OS version"],
-  [/\bsystem_profiler\b/, "Checked system information"],
-  [/\b(sysctl|systeminfo)\b/, "Checked system parameters"],
+  [/\bsystem_profiler\b/, "Checked system info"],
+  [/\b(sysctl|systeminfo)\b/, "Checked system info"],
   [/\b(pmset|powercfg)\b/, "Checked power settings"],
-
-  // ── Disk & files ──
   [/\bdf\b/, "Checked disk space"],
   [/\bdu\s/, "Checked folder size"],
   [/\bdiskutil\s+unmount\b/, "Ejected a disk"],
-  [/\bdiskutil\b/, "Checked disk information"],
+  [/\bdiskutil\b/, "Checked disk info"],
   [/\bfind\b.*-exec\s+(mv|cp)\b/, "Organized files"],
   [/\bfind\b/, "Searched for files"],
   [/\b(cat|less|more|head|tail)\s/, "Read a file"],
@@ -142,55 +139,43 @@ const SHELL_PATTERNS: [RegExp, string][] = [
   [/\bmkdir\b/, "Created folders"],
   [/\b(cp|rsync)\b/, "Copied files"],
   [/\bmv\b/, "Moved files"],
-  [/\b(chmod|chown|icacls)\b/, "Changed file permissions"],
+  [/\b(chmod|chown|icacls)\b/, "Changed permissions"],
   [/\brm\s/, "Cleaned up files"],
-
-  // ── Network ──
-  [/\bnetworksetup\s+-setairportnetwork\b/, "Connected to a WiFi network"],
-  [/\bnetworksetup\s+-scan\b/, "Scanned for WiFi networks"],
-  [/\bnetworksetup\b/, "Checked network settings"],
-  [/\b(ifconfig|ipconfig|scutil)\b/, "Checked network settings"],
-  [/\bwdutil\b/, "Checked WiFi diagnostics"],
-  [/\b(ping|arping)\s/, "Tested network connection"],
-  [/\b(nslookup|dig|host)\s/, "Looked up DNS records"],
+  [/\bnetworksetup\s+-setairportnetwork\b/, "Connected to WiFi"],
+  [/\bnetworksetup\s+-scan\b/, "Scanned for WiFi"],
+  [/\bnetworksetup\b/, "Checked network"],
+  [/\b(ifconfig|ipconfig|scutil)\b/, "Checked network"],
+  [/\bwdutil\b/, "Checked WiFi"],
+  [/\b(ping|arping)\s/, "Tested connectivity"],
+  [/\b(nslookup|dig|host)\s/, "Looked up DNS"],
   [/\btraceroute\s/, "Traced network route"],
-  [/\b(curl|wget)\s/, "Fetched data from the web"],
-  [/\blsof\b/, "Checked open files and connections"],
-  [/\b(netstat|ss)\b/, "Checked network connections"],
-  [/\bnetsh\b/, "Checked network configuration"],
-  [/\btailscale\b/, "Checked VPN status"],
-
-  // ── Printing ──
-  [/\blpr\s/, "Sent a file to the printer"],
-  [/\b(lpstat|lpoptions|lpq)\b/, "Checked printer status"],
-
-  // ── Processes & apps ──
+  [/\b(curl|wget)\s/, "Fetched from web"],
+  [/\blsof\b/, "Checked connections"],
+  [/\b(netstat|ss)\b/, "Checked connections"],
+  [/\bnetsh\b/, "Checked network"],
+  [/\btailscale\b/, "Checked VPN"],
+  [/\blpr\s/, "Printed a file"],
+  [/\b(lpstat|lpoptions|lpq)\b/, "Checked printer"],
   [/\b(killall|taskkill)\s+(\S+)/, "Stopped $2"],
   [/\bpkill\b/, "Stopped a process"],
-  [/\bopen\s+.*systempreferences/, "Opened System Settings"],
+  [/\bopen\s+.*systempreferences/, "Opened Settings"],
   [/\bopen\s+-a\s+(\S+)/, "Opened $1"],
   [/\b(open|start)\s/, "Opened a file"],
-
-  // ── Services & preferences ──
-  [/\b(launchctl|systemctl)\b/, "Managed system services"],
-  [/\bdefaults\s+write\b/, "Changed system preferences"],
-  [/\bdefaults\s+read\b/, "Checked system preferences"],
-
-  // ── Package managers ──
+  [/\b(launchctl|systemctl)\b/, "Managed services"],
+  [/\bdefaults\s+write\b/, "Changed preferences"],
+  [/\bdefaults\s+read\b/, "Checked preferences"],
   [/\b(brew|apt|yum|choco|winget|scoop)\s+install\b/, "Installed software"],
   [/\b(brew|apt|yum|choco|winget|scoop)\s+upgrade\b/, "Updated software"],
-  [/\b(brew|apt|yum|choco|winget|scoop)\s+(list|info)\b/, "Checked installed software"],
-  [/\b(npm|yarn|pnpm)\s+cache\s+clean\b/, "Cleared package cache"],
-  [/\bsoftwareupdate\b/, "Checked for system updates"],
-
-  // ── Security & system tools ──
-  [/\b(spctl|csrutil)\b/, "Checked security settings"],
-  [/\b(mdutil|mdfind)\b/, "Checked Spotlight indexing"],
+  [/\b(brew|apt|yum|choco|winget|scoop)\s+(list|info)\b/, "Checked software"],
+  [/\b(npm|yarn|pnpm)\s+cache\s+clean\b/, "Cleared cache"],
+  [/\bsoftwareupdate\b/, "Checked for updates"],
+  [/\b(spctl|csrutil)\b/, "Checked security"],
+  [/\b(mdutil|mdfind)\b/, "Checked Spotlight"],
   [/\btmutil\b/, "Checked Time Machine"],
-  [/\bdscacheutil\b/, "Checked directory cache"],
+  [/\bdscacheutil\b/, "Cleared cache"],
   [/\b(log\s+show|journalctl)\b/, "Read system logs"],
-  [/\b(wmic|Get-WmiObject|Get-CimInstance)/, "Checked system details"],
-  [/\b(sfc|DISM|chkdsk)\b/i, "Ran system repair tool"],
+  [/\b(wmic|Get-WmiObject|Get-CimInstance)/, "Checked system info"],
+  [/\b(sfc|DISM|chkdsk)\b/i, "Ran repair tool"],
 ];
 
 /** Extract a human-friendly label from a shell command string. */
@@ -218,34 +203,35 @@ function humanizeDescription(_toolName: string, description: string): string {
   return description;
 }
 
-/** Build a display label for an action — for shell_run, use the humanized
- *  description directly instead of the generic "Ran a command" prefix. */
+/** Pick the single best short label for an action. */
 function actionLabel(c: { tool_name: string; description: string }): string {
-  const humanized = humanizeDescription(c.tool_name, c.description);
-  if (c.tool_name === "shell_run" && humanized) return humanized;
-  const base = ACTION_LABELS[c.tool_name] || c.tool_name.replace(/_/g, " ");
-  if (humanized && humanized.toLowerCase() !== base.toLowerCase()) {
-    return `${base} \u2014 ${humanized}`;
+  // For shell_run, parse the command for a friendly label
+  if (c.tool_name === "shell_run") {
+    const humanized = humanizeDescription(c.tool_name, c.description);
+    return humanized || "Ran a command";
   }
-  return base;
+  // For dedicated tools, use the curated short label from ACTION_LABELS
+  return ACTION_LABELS[c.tool_name] || c.tool_name.replace(/_/g, " ");
 }
 
-/** Collapse consecutive actions with identical labels into { label, count }. */
+/** Collapse ALL actions with identical labels (global, not just consecutive). */
 function collapseActions(
   actions: { tool_name: string; description: string }[],
 ): { label: string; count: number; tooltip: string }[] {
-  const result: { label: string; count: number; tooltip: string }[] = [];
+  const map = new Map<string, { count: number; tooltip: string }>();
+  const order: string[] = [];
   for (const a of actions) {
     const lbl = actionLabel(a);
-    const last = result[result.length - 1];
-    if (last && last.label === lbl) {
-      last.count++;
-      last.tooltip += `\n${a.description}`;
+    const existing = map.get(lbl);
+    if (existing) {
+      existing.count++;
+      existing.tooltip += `\n${a.description}`;
     } else {
-      result.push({ label: lbl, count: 1, tooltip: a.description });
+      map.set(lbl, { count: 1, tooltip: a.description });
+      order.push(lbl);
     }
   }
-  return result;
+  return order.map((lbl) => ({ label: lbl, ...map.get(lbl)! }));
 }
 
 function ChangesBlock({ changeIds }: { changeIds: string[] }) {

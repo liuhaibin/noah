@@ -145,7 +145,7 @@ describe("ChangesBlock", () => {
     });
     render(<ChatPanel />);
     await userEvent.click(await screen.findByText("1 action taken"));
-    screen.getByText("Flushed DNS cache");
+    screen.getByText("Flushed DNS");
   });
 
   it("shows plural label for multiple actions", async () => {
@@ -210,7 +210,7 @@ describe("ChangesBlock", () => {
     });
     render(<ChatPanel />);
     await userEvent.click(await screen.findByText("1 action taken"));
-    screen.getByText(/Checked how long the computer has been running/);
+    screen.getByText(/Checked uptime/);
   });
 
   it("shows 'Ran a command' for unrecognized shell commands", async () => {
