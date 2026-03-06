@@ -218,6 +218,36 @@ function humanizeDescription(_toolName: string, description: string): string {
   return description;
 }
 
+/** Build a display label for an action — for shell_run, use the humanized
+ *  description directly instead of the generic "Ran a command" prefix. */
+function actionLabel(c: { tool_name: string; description: string }): string {
+  const humanized = humanizeDescription(c.tool_name, c.description);
+  if (c.tool_name === "shell_run" && humanized) return humanized;
+  const base = ACTION_LABELS[c.tool_name] || c.tool_name.replace(/_/g, " ");
+  if (humanized && humanized.toLowerCase() !== base.toLowerCase()) {
+    return `${base} \u2014 ${humanized}`;
+  }
+  return base;
+}
+
+/** Collapse consecutive actions with identical labels into { label, count }. */
+function collapseActions(
+  actions: { tool_name: string; description: string }[],
+): { label: string; count: number; tooltip: string }[] {
+  const result: { label: string; count: number; tooltip: string }[] = [];
+  for (const a of actions) {
+    const lbl = actionLabel(a);
+    const last = result[result.length - 1];
+    if (last && last.label === lbl) {
+      last.count++;
+      last.tooltip += `\n${a.description}`;
+    } else {
+      result.push({ label: lbl, count: 1, tooltip: a.description });
+    }
+  }
+  return result;
+}
+
 function ChangesBlock({ changeIds }: { changeIds: string[] }) {
   const [expanded, setExpanded] = useState(false);
   const changes = useSessionStore((s) => s.changes);
@@ -243,19 +273,13 @@ function ChangesBlock({ changeIds }: { changeIds: string[] }) {
       </button>
       {expanded && (
         <div className="px-3 py-2 border-t border-border-primary text-xs space-y-1.5">
-          {matched.map((c) => {
-            const label = ACTION_LABELS[c.tool_name] || c.tool_name.replace(/_/g, " ");
-            const raw = humanizeDescription(c.tool_name, c.description);
-            // Don't repeat if the detail is the same as the label
-            const detail = raw && raw.toLowerCase() !== label.toLowerCase() ? raw : "";
-            return (
-              <div key={c.id} className="flex items-start gap-2" title={c.description}>
-                <span className="text-text-secondary leading-snug">
-                  {label}{detail ? ` \u2014 ${detail}` : ""}
-                </span>
-              </div>
-            );
-          })}
+          {collapseActions(matched).map(({ label, count, tooltip }, i) => (
+            <div key={i} className="flex items-start gap-2" title={tooltip}>
+              <span className="text-text-secondary leading-snug">
+                {label}{count > 1 ? ` \u00d7${count}` : ""}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

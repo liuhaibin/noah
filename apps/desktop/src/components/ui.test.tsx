@@ -237,6 +237,32 @@ describe("ChangesBlock", () => {
     screen.getByText("Ran a command");
   });
 
+  it("collapses consecutive identical actions with ×N", async () => {
+    const mkChange = (id: string): ChangeEntry => ({
+      ...CHANGE,
+      id,
+      tool_name: "shell_run",
+      description: "Executed shell command: find ~/Library -name '*discord*' -type d",
+    });
+    useSessionStore.setState({
+      changes: [mkChange("c1"), mkChange("c2"), mkChange("c3")],
+    });
+    useChatStore.setState({
+      messages: [
+        {
+          id: "msg1",
+          role: "assistant",
+          content: "Done.",
+          timestamp: Date.now(),
+          changeIds: ["c1", "c2", "c3"],
+        },
+      ],
+    });
+    render(<ChatPanel />);
+    await userEvent.click(await screen.findByText("3 actions taken"));
+    screen.getByText(/Searched for files.*×3/);
+  });
+
   it("does not render when message has no changeIds", async () => {
     useChatStore.setState({
       messages: [
