@@ -167,12 +167,12 @@ const SHELL_PATTERNS: [RegExp, string][] = [
   [/\b(brew|apt|yum|choco|winget|scoop)\s+install\b/, "Installed software"],
   [/\b(brew|apt|yum|choco|winget|scoop)\s+upgrade\b/, "Updated software"],
   [/\b(brew|apt|yum|choco|winget|scoop)\s+(list|info)\b/, "Checked software"],
-  [/\b(npm|yarn|pnpm)\s+cache\s+clean\b/, "Cleared cache"],
+  [/\b(npm|yarn|pnpm)\s+cache\s+clean\b/, "Cleared caches"],
   [/\bsoftwareupdate\b/, "Checked for updates"],
   [/\b(spctl|csrutil)\b/, "Checked security"],
   [/\b(mdutil|mdfind)\b/, "Checked Spotlight"],
   [/\btmutil\b/, "Checked Time Machine"],
-  [/\bdscacheutil\b/, "Cleared cache"],
+  [/\bdscacheutil\b/, "Cleared caches"],
   [/\b(log\s+show|journalctl)\b/, "Read system logs"],
   [/\b(wmic|Get-WmiObject|Get-CimInstance)/, "Checked system info"],
   [/\b(sfc|DISM|chkdsk)\b/i, "Ran repair tool"],
@@ -195,10 +195,9 @@ function humanizeDescription(_toolName: string, description: string): string {
     const cmd = description.slice("Executed shell command:".length).trim();
     return humanizeShellCommand(cmd);
   }
-  // "Killed process 79514 with signal 15" → "Stopped a runaway process"
-  if (/^Killed process \d+/.test(description)) return "Stopped a runaway process";
-  // "Cleared contents of /Users/..." → "Cleared system caches"
-  if (description.startsWith("Cleared contents of")) return "Cleared system caches";
+  if (/^Killed process \d+/.test(description)) return "";
+  if (description.startsWith("Cleared contents of")) return "";
+  if (description.startsWith("Restarted")) return "";
   // "Set DNS to ..." → keep as-is, it's already clear
   return description;
 }
