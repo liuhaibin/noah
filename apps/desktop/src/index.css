@@ -47,6 +47,46 @@
   --color-status-denied: #566888;
 }
 
+/* ── Light Mode ──
+ * Same brand, daylight version. Soft blue-whites (not stark),
+ * deep navy text (reusing dark mode's backgrounds as text),
+ * and slightly deeper accents for readability on light surfaces.
+ */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg-primary: #f4f6fb;
+    --color-bg-secondary: #ffffff;
+    --color-bg-tertiary: #e8ecf4;
+    --color-bg-input: #ffffff;
+    --color-bg-user-bubble: #0d9488;
+    --color-bg-assistant-bubble: #f0f3f9;
+    --color-bg-system-bubble: #e8ecf4;
+    --color-bg-overlay: rgba(15, 23, 41, 0.3);
+
+    --color-text-primary: #0f1729;
+    --color-text-secondary: #3d4f6f;
+    --color-text-muted: #7889a5;
+    --color-text-inverse: #ffffff;
+
+    --color-border-primary: #d4dae8;
+    --color-border-focus: #0d9488;
+
+    --color-accent-blue: #0d9488;
+    --color-accent-green: #059669;
+    --color-accent-red: #dc2626;
+    --color-accent-amber: #d97706;
+    --color-accent-yellow: #f59e0b;
+    --color-accent-purple: #7c3aed;
+
+    --color-status-active: #059669;
+    --color-status-idle: #7889a5;
+    --color-status-pending: #d97706;
+    --color-status-running: #0d9488;
+    --color-status-error: #dc2626;
+    --color-status-denied: #7889a5;
+  }
+}
+
 /* ── Base Styles ── */
 html,
 body,
