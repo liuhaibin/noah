@@ -63,7 +63,73 @@ function ToolCallItem({ toolCall }: { toolCall: ToolCall }) {
   );
 }
 
-// ── Changes Block (inline per-message) ──
+// ── Actions Block (inline per-message) ──
+
+const ACTION_LABELS: Record<string, string> = {
+  shell_run: "Ran a command",
+  mac_network_info: "Checked network",
+  mac_ping: "Tested connectivity",
+  mac_dns_check: "Checked DNS",
+  mac_http_check: "Tested web access",
+  mac_flush_dns: "Flushed DNS cache",
+  mac_system_info: "Checked system info",
+  mac_system_summary: "Ran diagnostics",
+  mac_process_list: "Listed processes",
+  mac_disk_usage: "Checked disk space",
+  mac_printer_list: "Checked printers",
+  mac_print_queue: "Checked print queue",
+  mac_app_list: "Listed applications",
+  mac_app_logs: "Read app logs",
+  mac_read_file: "Read a file",
+  mac_read_log: "Read logs",
+  mac_kill_process: "Stopped a process",
+  mac_clear_caches: "Cleared caches",
+  mac_clear_app_cache: "Cleared app cache",
+  mac_restart_cups: "Restarted print service",
+  mac_cancel_print_jobs: "Cancelled print jobs",
+  mac_move_file: "Moved a file",
+  win_network_info: "Checked network",
+  win_ping: "Tested connectivity",
+  win_dns_check: "Checked DNS",
+  win_http_check: "Tested web access",
+  win_flush_dns: "Flushed DNS cache",
+  win_system_info: "Checked system info",
+  win_system_summary: "Ran diagnostics",
+  win_process_list: "Listed processes",
+  win_disk_usage: "Checked disk space",
+  win_printer_list: "Checked printers",
+  win_print_queue: "Checked print queue",
+  win_app_list: "Listed applications",
+  win_app_logs: "Read app logs",
+  win_app_data_ls: "Browsed app data",
+  win_read_file: "Read a file",
+  win_read_log: "Read logs",
+  win_kill_process: "Stopped a process",
+  win_clear_caches: "Cleared caches",
+  win_clear_app_cache: "Cleared app cache",
+  win_restart_spooler: "Restarted print service",
+  win_cancel_print_jobs: "Cancelled print jobs",
+  win_move_file: "Moved a file",
+  win_startup_programs: "Checked startup programs",
+  win_service_list: "Listed services",
+  win_restart_service: "Restarted a service",
+  write_knowledge: "Saved a note",
+  search_knowledge: "Searched notes",
+  read_knowledge: "Read a note",
+  list_knowledge: "Listed notes",
+};
+
+/** Turn a raw tool description into something a non-technical user understands. */
+function humanizeDescription(_toolName: string, description: string): string {
+  // "Executed shell command: <cmd>" → just show the friendly label, drop the command
+  if (description.startsWith("Executed shell command:")) return "";
+  // "Killed process 79514 with signal 15" → "Stopped a runaway process"
+  if (/^Killed process \d+/.test(description)) return "Stopped a runaway process";
+  // "Cleared contents of /Users/..." → "Cleared system caches"
+  if (description.startsWith("Cleared contents of")) return "Cleared system caches";
+  // "Set DNS to ..." → keep as-is, it's already clear
+  return description;
+}
 
 function ChangesBlock({ changeIds }: { changeIds: string[] }) {
   const [expanded, setExpanded] = useState(false);
@@ -90,14 +156,19 @@ function ChangesBlock({ changeIds }: { changeIds: string[] }) {
       </button>
       {expanded && (
         <div className="px-3 py-2 border-t border-border-primary text-xs space-y-1.5">
-          {matched.map((c) => (
-            <div key={c.id} className="flex items-start gap-2">
-              <span className="px-1 py-0.5 rounded bg-accent-purple/15 text-accent-purple text-[10px] font-mono flex-shrink-0">
-                {c.tool_name}
-              </span>
-              <span className="text-text-secondary leading-snug">{c.description}</span>
-            </div>
-          ))}
+          {matched.map((c) => {
+            const label = ACTION_LABELS[c.tool_name] || c.tool_name.replace(/_/g, " ");
+            const raw = humanizeDescription(c.tool_name, c.description);
+            // Don't repeat if the detail is the same as the label
+            const detail = raw && raw.toLowerCase() !== label.toLowerCase() ? raw : "";
+            return (
+              <div key={c.id} className="flex items-start gap-2" title={c.description}>
+                <span className="text-text-secondary leading-snug">
+                  {label}{detail ? ` \u2014 ${detail}` : ""}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

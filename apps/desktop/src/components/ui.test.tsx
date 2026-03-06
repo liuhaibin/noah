@@ -130,7 +130,7 @@ describe("ChangesBlock", () => {
     await screen.findByText("1 action taken");
   });
 
-  it("expands to show tool_name and description when clicked", async () => {
+  it("expands to show human-readable action when clicked", async () => {
     useSessionStore.setState({ changes: [CHANGE] });
     useChatStore.setState({
       messages: [
@@ -145,7 +145,6 @@ describe("ChangesBlock", () => {
     });
     render(<ChatPanel />);
     await userEvent.click(await screen.findByText("1 action taken"));
-    screen.getByText("mac_flush_dns");
     screen.getByText("Flushed DNS cache");
   });
 
