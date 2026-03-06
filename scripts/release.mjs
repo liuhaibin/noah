@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
@@ -149,6 +149,12 @@ async function main() {
     await runCommand("pnpm", ["install", "--frozen-lockfile"]);
   } else {
     console.log("==> Skipping dependency install (--skip-install)");
+  }
+
+  // Clean stale bundle artifacts from previous builds to avoid uploading wrong versions.
+  if (existsSync(BUNDLE_DIR)) {
+    console.log("==> Cleaning old bundle artifacts...");
+    await rm(BUNDLE_DIR, { recursive: true, force: true });
   }
 
   console.log("==> Running tauri build...");
