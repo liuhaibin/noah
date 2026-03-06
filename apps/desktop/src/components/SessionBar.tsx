@@ -20,7 +20,7 @@ export function SessionBar({ session }: SessionBarProps) {
 
   return (
     <header
-      className="flex items-center justify-between px-4 py-2.5 bg-bg-secondary/80 border-b border-border-primary select-none"
+      className="flex items-center justify-between px-4 py-2.5 bg-bg-secondary/90 border-b border-border-primary/60 select-none"
       data-tauri-drag-region=""
     >
       {/* Left: Brand + New conversation */}
@@ -33,7 +33,7 @@ export function SessionBar({ session }: SessionBarProps) {
         </div>
         <button
           onClick={session.startNewProblem}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-accent-green hover:bg-accent-green/10 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-accent-blue hover:bg-accent-blue/10 transition-colors cursor-pointer"
         >
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M7 3V11M3 7H11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />

@@ -3,40 +3,41 @@
 
 /* ── Noah — Warm Professional Theme ── */
 @theme {
-  /* Warm dark backgrounds */
-  --color-bg-primary: #1a1a1d;
-  --color-bg-secondary: #242428;
-  --color-bg-tertiary: #32323a;
-  --color-bg-input: #242428;
-  --color-bg-user-bubble: #0d9488;
-  --color-bg-assistant-bubble: #242428;
-  --color-bg-system-bubble: #1f1f24;
-  --color-bg-overlay: rgba(0, 0, 0, 0.5);
+  /* Warm dark backgrounds — visible brown/amber undertone */
+  --color-bg-primary: #1c1917;
+  --color-bg-secondary: #292524;
+  --color-bg-tertiary: #3d3632;
+  --color-bg-input: #292524;
+  --color-bg-user-bubble: #2d6a5e;
+  --color-bg-assistant-bubble: #28231f;
+  --color-bg-system-bubble: #231f1c;
+  --color-bg-overlay: rgba(10, 8, 6, 0.55);
 
-  /* Warm neutral text */
-  --color-text-primary: #ede9e3;
-  --color-text-secondary: #9c9890;
-  --color-text-muted: #6b6660;
+  /* Warm cream text */
+  --color-text-primary: #f5f0ea;
+  --color-text-secondary: #a8a29e;
+  --color-text-muted: #78716c;
   --color-text-inverse: #ffffff;
 
-  /* Borders */
-  --color-border-primary: #2e2e36;
-  --color-border-focus: #0d9488;
+  /* Warm borders */
+  --color-border-primary: #3d3532;
+  --color-border-focus: #2dd4bf;
 
-  /* Accents */
-  --color-accent-blue: #0d9488;
+  /* Accents — friendly teal + warm companions */
+  --color-accent-blue: #2dd4bf;
   --color-accent-green: #34d399;
   --color-accent-red: #f87171;
   --color-accent-amber: #fbbf24;
-  --color-accent-purple: #a78bfa;
+  --color-accent-yellow: #fde68a;
+  --color-accent-purple: #c4b5fd;
 
   /* Status */
   --color-status-active: #34d399;
-  --color-status-idle: #6b6660;
+  --color-status-idle: #78716c;
   --color-status-pending: #fbbf24;
-  --color-status-running: #0d9488;
+  --color-status-running: #2dd4bf;
   --color-status-error: #f87171;
-  --color-status-denied: #6b6660;
+  --color-status-denied: #78716c;
 }
 
 /* ── Base Styles ── */
