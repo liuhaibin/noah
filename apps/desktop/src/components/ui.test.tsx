@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // jsdom doesn't implement scrollIntoView — stub it for ChatPanel's useEffect
@@ -97,35 +97,16 @@ beforeEach(() => {
 // ── SessionBar ───────────────────────────────────────────────────────────────
 
 describe("SessionBar", () => {
-  it("hides Actions button when there are no actions", () => {
+  it("renders History, Knowledge, and Settings buttons", () => {
+    render(<SessionBar session={mockSession} />);
+    screen.getByText("History");
+    screen.getByText("Knowledge");
+  });
+
+  it("does not render an Actions button", () => {
+    useSessionStore.setState({ changes: [CHANGE] });
     render(<SessionBar session={mockSession} />);
     expect(screen.queryByText(/Actions/)).toBeNull();
-  });
-
-  it("shows Actions button with correct count when actions exist", () => {
-    useSessionStore.setState({ changes: [CHANGE] });
-    render(<SessionBar session={mockSession} />);
-    screen.getByText("Actions (1)");
-  });
-
-  it("shows plural count for multiple actions", () => {
-    useSessionStore.setState({ changes: [CHANGE, { ...CHANGE, id: "c2" }] });
-    render(<SessionBar session={mockSession} />);
-    screen.getByText("Actions (2)");
-  });
-
-  it("opens ChangeLog when Actions button is clicked", async () => {
-    useSessionStore.setState({ changes: [CHANGE] });
-    render(<SessionBar session={mockSession} />);
-    await userEvent.click(screen.getByText("Actions (1)"));
-    expect(useSessionStore.getState().changeLogOpen).toBe(true);
-  });
-
-  it("applies active style when changeLogOpen is true", () => {
-    useSessionStore.setState({ changes: [CHANGE], changeLogOpen: true });
-    render(<SessionBar session={mockSession} />);
-    const btn = screen.getByText("Actions (1)").closest("button")!;
-    expect(btn.className).toContain("bg-accent");
   });
 });
 
@@ -228,36 +209,15 @@ describe("ChangesBlock", () => {
 
 // ── SessionHistory actions badge ─────────────────────────────────────────────
 
-describe("SessionHistory actions badge", () => {
-  it("renders a clickable N actions badge for sessions with actions", async () => {
+describe("SessionHistory actions count", () => {
+  it("shows action count for sessions with actions", async () => {
     vi.mocked(commands.listSessions).mockResolvedValue([SESSION_WITH_CHANGES]);
     useSessionStore.setState({ historyOpen: true });
     render(<SessionHistory />);
     await screen.findByText("2 actions");
   });
 
-  it("calls getChanges with the session id when badge is clicked", async () => {
-    vi.mocked(commands.listSessions).mockResolvedValue([SESSION_WITH_CHANGES]);
-    vi.mocked(commands.getChanges).mockResolvedValue([CHANGE]);
-    useSessionStore.setState({ historyOpen: true });
-    render(<SessionHistory />);
-    await userEvent.click(await screen.findByText("2 actions"));
-    expect(commands.getChanges).toHaveBeenCalledWith("s1");
-  });
-
-  it("loads changes into store and opens ChangeLog when badge is clicked", async () => {
-    vi.mocked(commands.listSessions).mockResolvedValue([SESSION_WITH_CHANGES]);
-    vi.mocked(commands.getChanges).mockResolvedValue([CHANGE]);
-    useSessionStore.setState({ historyOpen: true });
-    render(<SessionHistory />);
-    await userEvent.click(await screen.findByText("2 actions"));
-    await waitFor(() => {
-      expect(useSessionStore.getState().changeLogOpen).toBe(true);
-      expect(useSessionStore.getState().changes).toEqual([CHANGE]);
-    });
-  });
-
-  it("does not render a badge for sessions with zero actions", async () => {
+  it("does not show action count for sessions with zero actions", async () => {
     const noChanges: SessionRecord = { ...SESSION_WITH_CHANGES, change_count: 0 };
     vi.mocked(commands.listSessions).mockResolvedValue([noChanges]);
     useSessionStore.setState({ historyOpen: true });

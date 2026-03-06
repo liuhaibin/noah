@@ -6,7 +6,6 @@ import { useSession } from "./hooks/useSession";
 import { SessionBar } from "./components/SessionBar";
 import { ChatPanel } from "./components/ChatPanel";
 import { ActionApproval } from "./components/ActionApproval";
-import { ChangeLog } from "./components/ChangeLog";
 import { SessionHistory } from "./components/SessionHistory";
 import { KnowledgePanel } from "./components/KnowledgePanel";
 import { DebugPanel } from "./components/DebugPanel";
@@ -104,7 +103,6 @@ function MainApp() {
       <DebugPanel />
       <SettingsPanel />
       <ActionApproval />
-      <ChangeLog />
       <KnowledgePanel />
       <SessionHistory />
     </div>

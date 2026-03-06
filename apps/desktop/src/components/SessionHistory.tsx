@@ -177,14 +177,12 @@ function SessionItem({
   onSelect,
   onExport,
   onDelete,
-  onViewActions,
   onResolveToggle,
 }: {
   session: SessionRecord;
   onSelect: (sessionId: string) => void;
   onExport: (sessionId: string, title: string) => void;
   onDelete: (sessionId: string) => void;
-  onViewActions: (sessionId: string) => void;
   onResolveToggle: (sessionId: string, resolved: boolean) => void;
 }) {
   const duration = formatDuration(session.created_at, session.ended_at);
@@ -220,13 +218,7 @@ function SessionItem({
           {session.change_count > 0 && (
             <>
               <span className="text-[10px] text-text-muted/40">·</span>
-              <span
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onViewActions(session.id);
-                }}
-                className="text-[10px] text-accent-purple hover:text-accent-purple/80 hover:underline cursor-pointer"
-              >
+              <span className="text-[10px] text-text-muted">
                 {session.change_count} action
                 {session.change_count !== 1 ? "s" : ""}
               </span>
@@ -255,8 +247,6 @@ export function SessionHistory() {
   const setHistoryOpen = useSessionStore((s) => s.setHistoryOpen);
   const pastSessions = useSessionStore((s) => s.pastSessions);
   const setPastSessions = useSessionStore((s) => s.setPastSessions);
-  const setChanges = useSessionStore((s) => s.setChanges);
-  const setChangeLogOpen = useSessionStore((s) => s.setChangeLogOpen);
   const { switchToProblem } = useSession();
 
   const loadSessions = useCallback(async () => {
@@ -322,19 +312,6 @@ export function SessionHistory() {
       setHistoryOpen(false);
     },
     [switchToProblem, setHistoryOpen],
-  );
-
-  const handleViewActions = useCallback(
-    async (sessionId: string) => {
-      try {
-        const changes = await commands.getChanges(sessionId);
-        setChanges(changes);
-        setChangeLogOpen(true);
-      } catch (err) {
-        console.error("Failed to load actions:", err);
-      }
-    },
-    [setChanges, setChangeLogOpen],
   );
 
   useEffect(() => {
@@ -422,7 +399,6 @@ export function SessionHistory() {
                   onSelect={handleSelectSession}
                   onExport={handleExport}
                   onDelete={handleDelete}
-                  onViewActions={handleViewActions}
                   onResolveToggle={handleResolveToggle}
                 />
               ))}

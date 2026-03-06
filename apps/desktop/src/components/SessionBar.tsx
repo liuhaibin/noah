@@ -12,9 +12,6 @@ export function SessionBar({ session }: SessionBarProps) {
   const historyOpen = useSessionStore((s) => s.historyOpen);
   const toggleKnowledge = useSessionStore((s) => s.toggleKnowledge);
   const knowledgeOpen = useSessionStore((s) => s.knowledgeOpen);
-  const toggleChangeLog = useSessionStore((s) => s.toggleChangeLog);
-  const changeLogOpen = useSessionStore((s) => s.changeLogOpen);
-  const changes = useSessionStore((s) => s.changes);
   const toggleSettings = useSessionStore((s) => s.toggleSettings);
   const settingsOpen = useSessionStore((s) => s.settingsOpen);
 
@@ -56,14 +53,6 @@ export function SessionBar({ session }: SessionBarProps) {
           onClick={toggleKnowledge}
           icon={<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2.5C2 2.5 3.5 1.5 7 1.5C10.5 1.5 12 2.5 12 2.5V11.5C12 11.5 10.5 10.5 7 10.5C3.5 10.5 2 11.5 2 11.5V2.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" /><path d="M7 1.5V10.5" stroke="currentColor" strokeWidth="1.1" /></svg>}
         />
-        {changes.length > 0 && (
-          <PanelButton
-            label={`Actions (${changes.length})`}
-            active={changeLogOpen}
-            onClick={toggleChangeLog}
-            icon={<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M8.5 1.5L12.5 5.5L5 13H1V9L8.5 1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" /><path d="M7 3L11 7" stroke="currentColor" strokeWidth="1.1" /></svg>}
-          />
-        )}
         <PanelButton
           label=""
           active={settingsOpen}
