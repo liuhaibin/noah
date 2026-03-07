@@ -707,15 +707,6 @@ function SuggestionCards({
 
   return (
     <div className="flex flex-col items-center text-text-muted">
-      <NoahIcon className="w-14 h-14 rounded-2xl mb-4" alt="Noah" />
-      <p className="text-2xl font-semibold text-text-primary mb-1">
-        Hey, I'm Noah
-      </p>
-      <p className="text-base text-text-secondary mb-8">
-        {contextual.length > 0
-          ? "What's going on? Or check in on something I know about."
-          : "Your computer helper. What's going on?"}
-      </p>
       <div className="grid grid-cols-2 gap-3 w-full max-w-md">
         {allSuggestions.map((s) => (
           <button
@@ -736,6 +727,22 @@ function SuggestionCards({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function WelcomeHero({ hasContextual }: { hasContextual: boolean }) {
+  return (
+    <div className="flex flex-col items-center text-text-muted">
+      <NoahIcon className="w-14 h-14 rounded-2xl mb-4" alt="Noah" />
+      <p className="text-2xl font-semibold text-text-primary mb-1">
+        Hey, I'm Noah
+      </p>
+      <p className="text-base text-text-secondary">
+        {hasContextual
+          ? "What's going on? Or check in on something I know about."
+          : "Your computer helper. What's going on?"}
+      </p>
     </div>
   );
 }
@@ -835,15 +842,16 @@ export function ChatPanel() {
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {showWelcome ? (
-          /* Welcome: hero + input centered in viewport */
-          <div className="flex flex-col items-center justify-center h-full">
+          /* Welcome: hero + cards + input centered in viewport */
+          <div className="flex flex-col items-center justify-center h-full gap-8">
+            <WelcomeHero hasContextual={false} />
             {!input.trim() && (
               <SuggestionCards
                 onSelect={(text) => sendMessage(text)}
                 disabled={isProcessing}
               />
             )}
-            <div className={`w-full ${input.trim() ? "" : "mt-8"} mb-4`}>
+            <div className="w-full mb-4">
               {inputCard}
             </div>
           </div>
