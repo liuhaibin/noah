@@ -145,7 +145,47 @@ pub fn init_db(path: &str) -> Result<Connection> {
     // Run migrations based on current schema version.
     run_migrations(&conn)?;
 
+    // Ensure critical tables exist even if schema_version was advanced manually
+    // or a prior migration only partially applied.
+    ensure_schema_invariants(&conn)?;
+
     Ok(conn)
+}
+
+fn ensure_schema_invariants(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS system_scan_results (
+            id          INTEGER PRIMARY KEY,
+            scan_type   TEXT NOT NULL,
+            category    TEXT,
+            path        TEXT,
+            key         TEXT,
+            value_num   REAL,
+            value_text  TEXT,
+            metadata    TEXT,
+            stale       INTEGER NOT NULL DEFAULT 0,
+            scanned_at  TEXT NOT NULL,
+            generation  INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_ssr_type ON system_scan_results(scan_type);
+        CREATE INDEX IF NOT EXISTS idx_ssr_type_cat ON system_scan_results(scan_type, category);
+
+        CREATE TABLE IF NOT EXISTS scan_jobs (
+            id              TEXT PRIMARY KEY,
+            scan_type       TEXT NOT NULL,
+            status          TEXT NOT NULL,
+            progress_pct    INTEGER NOT NULL DEFAULT 0,
+            progress_detail TEXT,
+            budget_secs     INTEGER,
+            started_at      TEXT,
+            updated_at      TEXT,
+            completed_at    TEXT,
+            config          TEXT
+        );",
+    )
+    .context("Failed to ensure scanner schema invariants")?;
+
+    Ok(())
 }
 
 fn get_schema_version(conn: &Connection) -> i32 {
