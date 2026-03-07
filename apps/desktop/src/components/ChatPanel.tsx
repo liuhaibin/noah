@@ -322,7 +322,7 @@ function DoneCard({
   return (
     <div className="group animate-fade-in">
       {/* Summary card */}
-      <div className="rounded-xl border border-border-primary/50 bg-bg-secondary px-5 py-4">
+      <div className="rounded-xl border border-accent-green/20 bg-accent-green/5 px-5 py-4">
         <div className="flex items-start gap-2.5">
           <span className="text-accent-green text-lg mt-0.5">{"\u2713"}</span>
           <div className="flex-1">
@@ -385,7 +385,7 @@ function InfoCard({
 }) {
   return (
     <div className="group animate-fade-in">
-      <div className="rounded-xl border border-border-primary/50 bg-bg-secondary px-5 py-4">
+      <div className="rounded-xl border border-accent-blue/20 bg-accent-blue/5 px-5 py-4">
         <div className="flex items-start gap-2.5">
           <span className="text-accent-blue text-lg mt-0.5">{"\u2139"}</span>
           <div className="flex-1">
