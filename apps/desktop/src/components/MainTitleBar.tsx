@@ -13,7 +13,7 @@ export function MainTitleBar() {
 
   return (
     <div
-      className="flex items-center justify-between h-[28px] pr-3 flex-shrink-0 select-none"
+      className="flex items-center justify-between h-[36px] pr-3 flex-shrink-0 select-none"
       style={{ paddingLeft }}
       data-tauri-drag-region=""
     >
