@@ -197,6 +197,7 @@ interface SidebarProps {
 
 export function Sidebar({ session }: SidebarProps) {
   const sidebarOpen = useSessionStore((s) => s.sidebarOpen);
+  const toggleSidebar = useSessionStore((s) => s.toggleSidebar);
   const activeView = useSessionStore((s) => s.activeView);
   const setActiveView = useSessionStore((s) => s.setActiveView);
   const currentSessionId = useSessionStore((s) => s.sessionId);
@@ -285,8 +286,22 @@ export function Sidebar({ session }: SidebarProps) {
 
   return (
     <div className="w-64 flex-shrink-0 bg-bg-secondary border-r border-border-primary flex flex-col h-full">
-      {/* Top section: New + nav */}
-      <div className="px-2 pt-3 pb-2 space-y-1" data-tauri-drag-region="">
+      {/* Title bar region — sits next to macOS traffic lights */}
+      <div className="flex items-center h-11 pl-[76px] pr-2 flex-shrink-0" data-tauri-drag-region="">
+        <button
+          onClick={toggleSidebar}
+          title="Hide sidebar"
+          className="flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-tertiary/50 transition-colors cursor-pointer"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M5.5 2.5V13.5" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Nav section */}
+      <div className="px-2 pb-2 space-y-1">
         {/* New chat */}
         <button
           onClick={handleNewChat}

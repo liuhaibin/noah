@@ -3,8 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import * as commands from "./lib/tauri-commands";
 import { useSession } from "./hooks/useSession";
-import { SessionBar } from "./components/SessionBar";
 import { ChatPanel } from "./components/ChatPanel";
+import { MainTitleBar } from "./components/MainTitleBar";
 import { ActionApproval } from "./components/ActionApproval";
 import { Sidebar } from "./components/Sidebar";
 import { KnowledgeView } from "./components/KnowledgePanel";
@@ -103,7 +103,7 @@ function MainApp() {
       <div className="flex flex-col flex-1 min-w-0">
         <UpdateBanner />
         <ProactiveSuggestionBanner />
-        <SessionBar />
+        <MainTitleBar />
         <SessionSummary />
         {activeView === "knowledge" ? <KnowledgeView /> : <ChatPanel />}
         <DebugPanel />

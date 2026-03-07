@@ -46,7 +46,7 @@ import * as commands from "../lib/tauri-commands";
 
 // ── Components ───────────────────────────────────────────────────────────────
 
-import { SessionBar } from "./SessionBar";
+import { MainTitleBar } from "./MainTitleBar";
 import { ChatPanel } from "./ChatPanel";
 import { Sidebar } from "./Sidebar";
 
@@ -93,19 +93,18 @@ beforeEach(() => {
   vi.mocked(commands.getChanges).mockResolvedValue([]);
 });
 
-// ── SessionBar ───────────────────────────────────────────────────────────────
+// ── MainTitleBar ─────────────────────────────────────────────────────────────
 
-describe("SessionBar", () => {
-  it("renders sidebar toggle and settings button", () => {
-    render(<SessionBar />);
-    screen.getByTitle("Hide sidebar");
+describe("MainTitleBar", () => {
+  it("renders Noah brand and settings button", () => {
+    render(<MainTitleBar />);
     screen.getByText("Noah");
   });
 
-  it("does not render an Actions button", () => {
-    useSessionStore.setState({ changes: [CHANGE] });
-    render(<SessionBar />);
-    expect(screen.queryByText(/Actions/)).toBeNull();
+  it("shows sidebar toggle when sidebar is closed", () => {
+    useSessionStore.setState({ sidebarOpen: false });
+    render(<MainTitleBar />);
+    screen.getByTitle("Show sidebar");
   });
 });
 
