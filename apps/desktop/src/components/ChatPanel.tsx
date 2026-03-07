@@ -762,7 +762,7 @@ export function ChatPanel() {
     const el = textareaRef.current;
     if (el) {
       el.style.height = "auto";
-      el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+      el.style.height = `${Math.min(el.scrollHeight, 300)}px`;
     }
   }, [input]);
 
@@ -794,7 +794,7 @@ export function ChatPanel() {
           placeholder="Tell Noah what you need help with..."
           rows={1}
           disabled={isProcessing}
-          className="flex-1 bg-transparent text-base text-text-primary placeholder-text-muted px-4 py-3 resize-none outline-none min-h-[44px] max-h-[120px]"
+          className="flex-1 bg-transparent text-base text-text-primary placeholder-text-muted px-4 py-3 resize-none outline-none min-h-[44px] max-h-[300px]"
         />
         <div className="flex items-center gap-1 pr-2 pb-1.5">
           {isProcessing ? (
@@ -837,11 +837,13 @@ export function ChatPanel() {
         {showWelcome ? (
           /* Welcome: hero + input centered in viewport */
           <div className="flex flex-col items-center justify-center h-full">
-            <SuggestionCards
-              onSelect={(text) => sendMessage(text)}
-              disabled={isProcessing}
-            />
-            <div className="w-full mt-8 mb-4">
+            {!input.trim() && (
+              <SuggestionCards
+                onSelect={(text) => sendMessage(text)}
+                disabled={isProcessing}
+              />
+            )}
+            <div className={`w-full ${input.trim() ? "" : "mt-8"} mb-4`}>
               {inputCard}
             </div>
           </div>
