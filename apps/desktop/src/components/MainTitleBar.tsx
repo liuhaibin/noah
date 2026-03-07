@@ -1,5 +1,4 @@
 import { useSessionStore } from "../stores/sessionStore";
-import { NoahIcon } from "./NoahIcon";
 
 export function MainTitleBar() {
   const sidebarOpen = useSessionStore((s) => s.sidebarOpen);
@@ -9,28 +8,20 @@ export function MainTitleBar() {
 
   return (
     <div
-      className="flex items-center justify-between h-11 px-4 flex-shrink-0 select-none"
+      className="flex items-center justify-between h-11 pl-[76px] pr-3 flex-shrink-0 select-none"
       data-tauri-drag-region=""
     >
-      {/* Left: Sidebar toggle (when hidden) + Brand */}
-      <div className="flex items-center gap-2" data-tauri-drag-region="">
-        {!sidebarOpen && (
-          <button
-            onClick={toggleSidebar}
-            title="Show sidebar"
-            className="flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-tertiary/50 transition-colors cursor-pointer"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-              <path d="M5.5 2.5V13.5" stroke="currentColor" strokeWidth="1.2" />
-            </svg>
-          </button>
-        )}
-        <NoahIcon className="w-6 h-6 rounded-md" alt="Noah" />
-        <span className="text-sm font-semibold text-text-primary">
-          Noah
-        </span>
-      </div>
+      {/* Left: Sidebar toggle (always visible, next to traffic lights) */}
+      <button
+        onClick={toggleSidebar}
+        title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+        className="flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-tertiary/50 transition-colors cursor-pointer"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M5.5 2.5V13.5" stroke="currentColor" strokeWidth="1.2" />
+        </svg>
+      </button>
 
       {/* Right: Settings */}
       <button

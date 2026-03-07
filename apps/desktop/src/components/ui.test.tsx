@@ -96,12 +96,12 @@ beforeEach(() => {
 // ── MainTitleBar ─────────────────────────────────────────────────────────────
 
 describe("MainTitleBar", () => {
-  it("renders Noah brand and settings button", () => {
+  it("renders sidebar toggle", () => {
     render(<MainTitleBar />);
-    screen.getByText("Noah");
+    screen.getByTitle("Hide sidebar");
   });
 
-  it("shows sidebar toggle when sidebar is closed", () => {
+  it("shows 'Show sidebar' when sidebar is closed", () => {
     useSessionStore.setState({ sidebarOpen: false });
     render(<MainTitleBar />);
     screen.getByTitle("Show sidebar");

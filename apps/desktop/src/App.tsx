@@ -95,20 +95,23 @@ function MainApp() {
   }, [toggle]);
 
   return (
-    <div className="flex h-screen bg-bg-primary text-text-primary">
-      {/* Left sidebar */}
-      <Sidebar session={session} />
+    <div className="flex flex-col h-screen bg-bg-primary text-text-primary">
+      {/* Title bar — spans full width, sits in macOS overlay region */}
+      <MainTitleBar />
+      <UpdateBanner />
+      <ProactiveSuggestionBanner />
 
-      {/* Main content */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <UpdateBanner />
-        <ProactiveSuggestionBanner />
-        <MainTitleBar />
-        <SessionSummary />
-        {activeView === "knowledge" ? <KnowledgeView /> : <ChatPanel />}
-        <DebugPanel />
-        <SettingsPanel />
-        <ActionApproval />
+      {/* Body: sidebar + main content */}
+      <div className="flex flex-1 min-h-0">
+        <Sidebar session={session} />
+
+        <div className="flex flex-col flex-1 min-w-0">
+          <SessionSummary />
+          {activeView === "knowledge" ? <KnowledgeView /> : <ChatPanel />}
+          <DebugPanel />
+          <SettingsPanel />
+          <ActionApproval />
+        </div>
       </div>
     </div>
   );
