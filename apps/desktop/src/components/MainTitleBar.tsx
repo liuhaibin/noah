@@ -1,5 +1,7 @@
 import { useSessionStore } from "../stores/sessionStore";
 
+const isMac = navigator.platform.startsWith("Mac");
+
 export function MainTitleBar() {
   const sidebarOpen = useSessionStore((s) => s.sidebarOpen);
   const toggleSidebar = useSessionStore((s) => s.toggleSidebar);
@@ -8,10 +10,12 @@ export function MainTitleBar() {
 
   return (
     <div
-      className="flex items-center justify-between h-11 pl-[76px] pr-3 flex-shrink-0 select-none"
+      className={`flex items-center justify-between h-11 pr-3 flex-shrink-0 select-none ${
+        isMac ? "pl-[76px]" : "pl-3"
+      }`}
       data-tauri-drag-region=""
     >
-      {/* Left: Sidebar toggle (always visible, next to traffic lights) */}
+      {/* Left: Sidebar toggle (always visible, next to traffic lights on Mac) */}
       <button
         onClick={toggleSidebar}
         title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
