@@ -13,6 +13,12 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(() => Promise.resolve(() => {})),
 }));
+const startDraggingMock = vi.fn().mockResolvedValue(undefined);
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: vi.fn(() => ({
+    startDragging: startDraggingMock,
+  })),
+}));
 vi.mock("../lib/tauri-commands", () => ({
   listKnowledge: vi.fn().mockResolvedValue([]),
   listSessions: vi.fn().mockResolvedValue([]),
@@ -75,6 +81,7 @@ const SESSION_WITH_CHANGES: SessionRecord = {
 afterEach(() => cleanup());
 
 beforeEach(() => {
+  startDraggingMock.mockClear();
   useSessionStore.setState({
     changes: [],
     changeLogOpen: false,
@@ -85,6 +92,7 @@ beforeEach(() => {
     pendingApproval: null,
     knowledgeOpen: false,
     settingsOpen: false,
+    sidebarOpen: true,
   });
   useChatStore.setState({ messages: [] });
   vi.clearAllMocks();
@@ -105,6 +113,27 @@ describe("MainTitleBar", () => {
     useSessionStore.setState({ sidebarOpen: false });
     render(<MainTitleBar />);
     screen.getByTitle("Show sidebar");
+  });
+
+  it("starts dragging when pressing empty title bar space", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<MainTitleBar />);
+
+    await user.pointer({
+      target: container.firstElementChild as HTMLElement,
+      keys: "[MouseLeft]",
+    });
+
+    expect(startDraggingMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not start dragging when pressing a title bar button", async () => {
+    const user = userEvent.setup();
+    render(<MainTitleBar />);
+
+    await user.click(screen.getByTitle("Hide sidebar"));
+
+    expect(startDraggingMock).not.toHaveBeenCalled();
   });
 });
 

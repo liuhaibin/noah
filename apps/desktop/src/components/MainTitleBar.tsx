@@ -1,3 +1,5 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { MouseEvent } from "react";
 import { useSessionStore } from "../stores/sessionStore";
 
 const isMac = navigator.platform.startsWith("Mac");
@@ -7,6 +9,13 @@ export function MainTitleBar() {
   const toggleSidebar = useSessionStore((s) => s.toggleSidebar);
   const toggleSettings = useSessionStore((s) => s.toggleSettings);
   const settingsOpen = useSessionStore((s) => s.settingsOpen);
+
+  const startWindowDrag = (e: MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("button")) {
+      return;
+    }
+    getCurrentWindow().startDragging().catch(() => {});
+  };
   // On macOS, pad left to clear native traffic lights (76px).
   // Title bar is outside the zoom container, so no compensation needed.
   const paddingLeft = isMac ? 76 : 12;
@@ -16,6 +25,7 @@ export function MainTitleBar() {
       className="flex items-center justify-between h-[36px] pr-3 flex-shrink-0 select-none"
       style={{ paddingLeft }}
       data-tauri-drag-region=""
+      onMouseDown={startWindowDrag}
     >
       {/* Left: Sidebar toggle (next to traffic lights on Mac) */}
       <button
