@@ -50,6 +50,7 @@ export interface KnowledgeEntry {
   filename: string;
   path: string;
   title: string;
+  playbook_type?: string | null;
 }
 
 // ── Tauri Command Wrappers ──

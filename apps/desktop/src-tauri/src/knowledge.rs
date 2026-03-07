@@ -85,9 +85,7 @@ pub fn safe_resolve(knowledge_dir: &Path, relative: &str) -> Result<PathBuf> {
     }
 
     // Reconstruct the final path using the canonical parent + filename.
-    let filename = joined
-        .file_name()
-        .context("Missing filename")?;
+    let filename = joined.file_name().context("Missing filename")?;
     Ok(canonical_parent.join(filename))
 }
 
@@ -99,6 +97,30 @@ pub struct KnowledgeEntry {
     pub filename: String,
     pub path: String,
     pub title: String,
+    pub playbook_type: Option<String>,
+}
+
+fn extract_playbook_type(content: &str) -> Option<String> {
+    let trimmed = content.trim_start();
+    if !trimmed.starts_with("---") {
+        return None;
+    }
+
+    let after_first = &trimmed[3..];
+    let end = after_first.find("\n---")?;
+    let yaml_block = &after_first[..end];
+
+    for line in yaml_block.lines() {
+        let line = line.trim();
+        if let Some(value) = line.strip_prefix("type:") {
+            let kind = value.trim();
+            if !kind.is_empty() {
+                return Some(kind.to_string());
+            }
+        }
+    }
+
+    None
 }
 
 /// Extract the title from the first `# ` heading line, or derive from filename.
@@ -113,9 +135,7 @@ fn extract_title(content: &str, filename: &str) -> String {
         }
     }
     // Derive from filename: replace dashes with spaces, title-case first letter.
-    let derived = filename
-        .trim_end_matches(".md")
-        .replace('-', " ");
+    let derived = filename.trim_end_matches(".md").replace('-', " ");
     let mut chars = derived.chars();
     match chars.next() {
         None => "Untitled".to_string(),
@@ -124,7 +144,10 @@ fn extract_title(content: &str, filename: &str) -> String {
 }
 
 /// List all knowledge files, optionally filtered by category.
-pub fn list_knowledge_tree(knowledge_dir: &Path, category: Option<&str>) -> Result<Vec<KnowledgeEntry>> {
+pub fn list_knowledge_tree(
+    knowledge_dir: &Path,
+    category: Option<&str>,
+) -> Result<Vec<KnowledgeEntry>> {
     let mut entries = Vec::new();
 
     let dirs_to_scan: Vec<PathBuf> = if let Some(cat) = category {
@@ -167,11 +190,17 @@ pub fn list_knowledge_tree(knowledge_dir: &Path, category: Option<&str>) -> Resu
                 let rel_path = format!("{}/{}", cat_name, fname);
                 let content = std::fs::read_to_string(file_entry.path()).unwrap_or_default();
                 let title = extract_title(&content, &fname);
+                let playbook_type = if cat_name == "playbooks" {
+                    extract_playbook_type(&content).or_else(|| Some("user".to_string()))
+                } else {
+                    None
+                };
                 entries.push(KnowledgeEntry {
                     category: cat_name.clone(),
                     filename: fname,
                     path: rel_path,
                     title,
+                    playbook_type,
                 });
             }
         }
@@ -255,9 +284,18 @@ impl Tool for WriteKnowledgeTool {
     }
 
     async fn execute(&self, input: &Value) -> Result<ToolResult> {
-        let category = input.get("category").and_then(|v| v.as_str()).context("Missing 'category'")?;
-        let filename = input.get("filename").and_then(|v| v.as_str()).context("Missing 'filename'")?;
-        let content = input.get("content").and_then(|v| v.as_str()).context("Missing 'content'")?;
+        let category = input
+            .get("category")
+            .and_then(|v| v.as_str())
+            .context("Missing 'category'")?;
+        let filename = input
+            .get("filename")
+            .and_then(|v| v.as_str())
+            .context("Missing 'filename'")?;
+        let content = input
+            .get("content")
+            .and_then(|v| v.as_str())
+            .context("Missing 'content'")?;
 
         let slug = slugify(filename);
         let rel_path = format!("{}/{}.md", slugify(category), slug);
@@ -317,7 +355,10 @@ impl Tool for SearchKnowledgeTool {
     }
 
     async fn execute(&self, input: &Value) -> Result<ToolResult> {
-        let query = input.get("query").and_then(|v| v.as_str()).context("Missing 'query'")?;
+        let query = input
+            .get("query")
+            .and_then(|v| v.as_str())
+            .context("Missing 'query'")?;
         let category = input.get("category").and_then(|v| v.as_str());
 
         let query_lower = query.to_lowercase();
@@ -426,7 +467,10 @@ impl Tool for ReadKnowledgeTool {
     }
 
     async fn execute(&self, input: &Value) -> Result<ToolResult> {
-        let path = input.get("path").and_then(|v| v.as_str()).context("Missing 'path'")?;
+        let path = input
+            .get("path")
+            .and_then(|v| v.as_str())
+            .context("Missing 'path'")?;
         let full_path = safe_resolve(&self.knowledge_dir, path)?;
 
         let content = std::fs::read_to_string(&full_path)
@@ -501,12 +545,14 @@ impl Tool for ListKnowledgeTool {
 
         let data: Vec<Value> = entries
             .iter()
-            .map(|e| json!({
-                "category": e.category,
-                "filename": e.filename,
-                "path": e.path,
-                "title": e.title,
-            }))
+            .map(|e| {
+                json!({
+                    "category": e.category,
+                    "filename": e.filename,
+                    "path": e.path,
+                    "title": e.title,
+                })
+            })
             .collect();
 
         Ok(ToolResult::read_only(
@@ -520,10 +566,7 @@ impl Tool for ListKnowledgeTool {
 
 /// Migrate existing artifacts from SQLite to markdown files.
 /// Called by journal migration 4.
-pub fn migrate_artifacts_to_files(
-    conn: &rusqlite::Connection,
-    knowledge_dir: &Path,
-) -> Result<()> {
+pub fn migrate_artifacts_to_files(conn: &rusqlite::Connection, knowledge_dir: &Path) -> Result<()> {
     // Check if the artifacts table exists.
     let table_exists: bool = conn
         .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='artifacts'")
@@ -534,9 +577,8 @@ pub fn migrate_artifacts_to_files(
         return Ok(());
     }
 
-    let mut stmt = conn.prepare(
-        "SELECT category, title, content FROM artifacts ORDER BY updated_at ASC",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT category, title, content FROM artifacts ORDER BY updated_at ASC")?;
 
     let rows = stmt.query_map([], |row| {
         Ok((
@@ -586,8 +628,7 @@ pub fn delete_knowledge_file(knowledge_dir: &Path, relative: &str) -> Result<()>
     if !full_path.exists() {
         anyhow::bail!("File not found: {}", relative);
     }
-    std::fs::remove_file(&full_path)
-        .with_context(|| format!("Failed to delete: {}", relative))?;
+    std::fs::remove_file(&full_path).with_context(|| format!("Failed to delete: {}", relative))?;
     Ok(())
 }
 
@@ -611,7 +652,10 @@ mod tests {
 
     #[test]
     fn test_slugify_special_chars() {
-        assert_eq!(slugify("Slow WiFi fixed (DNS change)"), "slow-wifi-fixed-dns-change");
+        assert_eq!(
+            slugify("Slow WiFi fixed (DNS change)"),
+            "slow-wifi-fixed-dns-change"
+        );
     }
 
     #[test]
@@ -660,7 +704,11 @@ mod tests {
     fn test_list_knowledge_tree_with_files() {
         let (_tmp, kdir) = setup();
         std::fs::write(kdir.join("devices/printer.md"), "# HP LaserJet\n\nDetails").unwrap();
-        std::fs::write(kdir.join("issues/slow-wifi.md"), "# Slow WiFi Fixed\n\nChanged DNS").unwrap();
+        std::fs::write(
+            kdir.join("issues/slow-wifi.md"),
+            "# Slow WiFi Fixed\n\nChanged DNS",
+        )
+        .unwrap();
 
         let entries = list_knowledge_tree(&kdir, None).unwrap();
         assert_eq!(entries.len(), 2);
@@ -678,6 +726,22 @@ mod tests {
         let entries = list_knowledge_tree(&kdir, Some("devices")).unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].title, "Printer");
+    }
+
+    #[test]
+    fn test_list_knowledge_tree_sets_playbook_type() {
+        let (_tmp, kdir) = setup();
+        let content = "---
+name: Network Diagnostics
+description: Diagnose network issues
+type: system
+---
+# Network";
+        std::fs::write(kdir.join("playbooks/network.md"), content).unwrap();
+
+        let entries = list_knowledge_tree(&kdir, Some("playbooks")).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].playbook_type.as_deref(), Some("system"));
     }
 
     #[test]
@@ -701,12 +765,18 @@ mod tests {
 
     #[test]
     fn test_extract_title_from_heading() {
-        assert_eq!(extract_title("# My Title\n\nContent", "file.md"), "My Title");
+        assert_eq!(
+            extract_title("# My Title\n\nContent", "file.md"),
+            "My Title"
+        );
     }
 
     #[test]
     fn test_extract_title_from_filename() {
-        assert_eq!(extract_title("No heading here", "my-cool-file.md"), "My cool file");
+        assert_eq!(
+            extract_title("No heading here", "my-cool-file.md"),
+            "My cool file"
+        );
     }
 
     #[test]
@@ -748,8 +818,16 @@ mod tests {
     #[tokio::test]
     async fn test_search_knowledge_tool() {
         let (_tmp, kdir) = setup();
-        std::fs::write(kdir.join("devices/printer.md"), "# HP LaserJet\n\nModel M404n").unwrap();
-        std::fs::write(kdir.join("network/wifi.md"), "# WiFi Config\n\nDNS: 8.8.8.8").unwrap();
+        std::fs::write(
+            kdir.join("devices/printer.md"),
+            "# HP LaserJet\n\nModel M404n",
+        )
+        .unwrap();
+        std::fs::write(
+            kdir.join("network/wifi.md"),
+            "# WiFi Config\n\nDNS: 8.8.8.8",
+        )
+        .unwrap();
 
         let tool = SearchKnowledgeTool::new(kdir);
         let input = json!({ "query": "DNS" });
@@ -770,7 +848,11 @@ mod tests {
     #[tokio::test]
     async fn test_read_knowledge_tool() {
         let (_tmp, kdir) = setup();
-        std::fs::write(kdir.join("devices/printer.md"), "# HP LaserJet\n\nDetails here").unwrap();
+        std::fs::write(
+            kdir.join("devices/printer.md"),
+            "# HP LaserJet\n\nDetails here",
+        )
+        .unwrap();
 
         let tool = ReadKnowledgeTool::new(kdir);
         let input = json!({ "path": "devices/printer.md" });

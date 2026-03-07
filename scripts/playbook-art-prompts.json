@@ -1,0 +1,79 @@
+[
+  {
+    "file": "TEMPLATE.md",
+    "name": "TEMPLATE",
+    "description": "",
+    "platform": "all",
+    "prompt": "Create a clean, modern illustration card for a troubleshooting playbook titled \"TEMPLATE\". Concept: IT diagnostic workflow. Platform context: all. Style: flat vector, soft gradients, rounded corners, no text in image, subtle depth, product UI aesthetic. Composition: one clear hero object + 1-2 supporting objects representing diagnosis and repair. Palette: calm tech tones (blue/slate/teal) with a single accent color. Export target: 16:9 thumbnail card for desktop app knowledge gallery."
+  },
+  {
+    "file": "app-doctor.md",
+    "name": "app-doctor",
+    "description": "Fix app crashes, launch failures, and permission issues",
+    "platform": "macos",
+    "prompt": "Create a clean, modern illustration card for a troubleshooting playbook titled \"app-doctor\". Concept: Fix app crashes, launch failures, and permission issues. Platform context: macos. Style: flat vector, soft gradients, rounded corners, no text in image, subtle depth, product UI aesthetic. Composition: one clear hero object + 1-2 supporting objects representing diagnosis and repair. Palette: calm tech tones (blue/slate/teal) with a single accent color. Export target: 16:9 thumbnail card for desktop app knowledge gallery."
+  },
+  {
+    "file": "disk-space-recovery.md",
+    "name": "disk-space-recovery",
+    "description": "Find and reclaim disk space from caches, backups, and hidden consumers",
+    "platform": "macos",
+    "prompt": "Create a clean, modern illustration card for a troubleshooting playbook titled \"disk-space-recovery\". Concept: Find and reclaim disk space from caches, backups, and hidden consumers. Platform context: macos. Style: flat vector, soft gradients, rounded corners, no text in image, subtle depth, product UI aesthetic. Composition: one clear hero object + 1-2 supporting objects representing diagnosis and repair. Palette: calm tech tones (blue/slate/teal) with a single accent color. Export target: 16:9 thumbnail card for desktop app knowledge gallery."
+  },
+  {
+    "file": "network-diagnostics.md",
+    "name": "network-diagnostics",
+    "description": "Systematic connectivity troubleshooting for Wi-Fi, DNS, and internet issues",
+    "platform": "macos",
+    "prompt": "Create a clean, modern illustration card for a troubleshooting playbook titled \"network-diagnostics\". Concept: Systematic connectivity troubleshooting for Wi-Fi, DNS, and internet issues. Platform context: macos. Style: flat vector, soft gradients, rounded corners, no text in image, subtle depth, product UI aesthetic. Composition: one clear hero object + 1-2 supporting objects representing diagnosis and repair. Palette: calm tech tones (blue/slate/teal) with a single accent color. Export target: 16:9 thumbnail card for desktop app knowledge gallery."
+  },
+  {
+    "file": "outlook-troubleshooting.md",
+    "name": "outlook-troubleshooting",
+    "description": "Fix Outlook sync failures, crashes, stuck email, and profile corruption",
+    "platform": "all",
+    "prompt": "Create a clean, modern illustration card for a troubleshooting playbook titled \"outlook-troubleshooting\". Concept: Fix Outlook sync failures, crashes, stuck email, and profile corruption. Platform context: all. Style: flat vector, soft gradients, rounded corners, no text in image, subtle depth, product UI aesthetic. Composition: one clear hero object + 1-2 supporting objects representing diagnosis and repair. Palette: calm tech tones (blue/slate/teal) with a single accent color. Export target: 16:9 thumbnail card for desktop app knowledge gallery."
+  },
+  {
+    "file": "performance-forensics.md",
+    "name": "performance-forensics",
+    "description": "Diagnose slowness, high CPU, memory pressure, and hangs",
+    "platform": "macos",
+    "prompt": "Create a clean, modern illustration card for a troubleshooting playbook titled \"performance-forensics\". Concept: Diagnose slowness, high CPU, memory pressure, and hangs. Platform context: macos. Style: flat vector, soft gradients, rounded corners, no text in image, subtle depth, product UI aesthetic. Composition: one clear hero object + 1-2 supporting objects representing diagnosis and repair. Palette: calm tech tones (blue/slate/teal) with a single accent color. Export target: 16:9 thumbnail card for desktop app knowledge gallery."
+  },
+  {
+    "file": "printer-repair.md",
+    "name": "printer-repair",
+    "description": "Fix stuck print jobs, missing printers, and CUPS issues",
+    "platform": "macos",
+    "prompt": "Create a clean, modern illustration card for a troubleshooting playbook titled \"printer-repair\". Concept: Fix stuck print jobs, missing printers, and CUPS issues. Platform context: macos. Style: flat vector, soft gradients, rounded corners, no text in image, subtle depth, product UI aesthetic. Composition: one clear hero object + 1-2 supporting objects representing diagnosis and repair. Palette: calm tech tones (blue/slate/teal) with a single accent color. Export target: 16:9 thumbnail card for desktop app knowledge gallery."
+  },
+  {
+    "file": "update-troubleshooting.md",
+    "name": "update-troubleshooting",
+    "description": "Fix stuck macOS updates, failed installations, and software update errors",
+    "platform": "macos",
+    "prompt": "Create a clean, modern illustration card for a troubleshooting playbook titled \"update-troubleshooting\". Concept: Fix stuck macOS updates, failed installations, and software update errors. Platform context: macos. Style: flat vector, soft gradients, rounded corners, no text in image, subtle depth, product UI aesthetic. Composition: one clear hero object + 1-2 supporting objects representing diagnosis and repair. Palette: calm tech tones (blue/slate/teal) with a single accent color. Export target: 16:9 thumbnail card for desktop app knowledge gallery."
+  },
+  {
+    "file": "vpn-troubleshooting.md",
+    "name": "vpn-troubleshooting",
+    "description": "Diagnose VPN connection failures, drops, and split-tunnel DNS issues",
+    "platform": "macos",
+    "prompt": "Create a clean, modern illustration card for a troubleshooting playbook titled \"vpn-troubleshooting\". Concept: Diagnose VPN connection failures, drops, and split-tunnel DNS issues. Platform context: macos. Style: flat vector, soft gradients, rounded corners, no text in image, subtle depth, product UI aesthetic. Composition: one clear hero object + 1-2 supporting objects representing diagnosis and repair. Palette: calm tech tones (blue/slate/teal) with a single accent color. Export target: 16:9 thumbnail card for desktop app knowledge gallery."
+  },
+  {
+    "file": "windows-printer-repair.md",
+    "name": "windows-printer-repair",
+    "description": "Fix stuck print jobs, offline printers, and spooler issues on Windows",
+    "platform": "windows",
+    "prompt": "Create a clean, modern illustration card for a troubleshooting playbook titled \"windows-printer-repair\". Concept: Fix stuck print jobs, offline printers, and spooler issues on Windows. Platform context: windows. Style: flat vector, soft gradients, rounded corners, no text in image, subtle depth, product UI aesthetic. Composition: one clear hero object + 1-2 supporting objects representing diagnosis and repair. Palette: calm tech tones (blue/slate/teal) with a single accent color. Export target: 16:9 thumbnail card for desktop app knowledge gallery."
+  },
+  {
+    "file": "windows-update-troubleshooting.md",
+    "name": "windows-update-troubleshooting",
+    "description": "Fix stuck Windows Updates, failed installations, and update service errors",
+    "platform": "windows",
+    "prompt": "Create a clean, modern illustration card for a troubleshooting playbook titled \"windows-update-troubleshooting\". Concept: Fix stuck Windows Updates, failed installations, and update service errors. Platform context: windows. Style: flat vector, soft gradients, rounded corners, no text in image, subtle depth, product UI aesthetic. Composition: one clear hero object + 1-2 supporting objects representing diagnosis and repair. Palette: calm tech tones (blue/slate/teal) with a single accent color. Export target: 16:9 thumbnail card for desktop app knowledge gallery."
+  }
+]
