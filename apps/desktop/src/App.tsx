@@ -62,7 +62,7 @@ function App() {
 }
 
 function MainApp() {
-  useZoom(); // CSS-based zoom via Cmd+/-/0 (scales everything incl. traffic lights)
+  const zoom = useZoom(); // CSS-based zoom via Cmd+/-/0
   const session = useSession();
   const activeView = useSessionStore((s) => s.activeView);
   const addEvent = useDebugStore((s) => s.addEvent);
@@ -99,7 +99,7 @@ function MainApp() {
   return (
     <div className="flex flex-col h-screen bg-bg-primary text-text-primary">
       {/* Title bar — spans full width, sits in macOS overlay region */}
-      <MainTitleBar />
+      <MainTitleBar zoom={zoom} />
       <UpdateBanner />
       <ProactiveSuggestionBanner />
 
