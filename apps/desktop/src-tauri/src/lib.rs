@@ -210,8 +210,14 @@ pub fn run() {
             // Register UI tools.
             ui_tools::register_ui_tools(&mut router);
 
-            // Seed built-in playbooks into knowledge/playbooks/ and register activate_playbook.
-            let playbook_registry = playbooks::PlaybookRegistry::init(&knowledge_dir)
+            // Seed bundled playbooks into knowledge/playbooks/ and register activate_playbook.
+            // Playbooks ship as Tauri bundled resources (plain files, not compiled in).
+            let bundled_playbooks = app
+                .path()
+                .resource_dir()
+                .expect("Failed to resolve resource directory")
+                .join("playbooks");
+            let playbook_registry = playbooks::PlaybookRegistry::init(&knowledge_dir, &bundled_playbooks)
                 .expect("Failed to initialise playbooks");
             router.register(Box::new(playbooks::ActivatePlaybookTool::new(playbook_registry)));
 
