@@ -14,6 +14,7 @@ use crate::AppState;
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AssistantActionType {
     RunStep,
+    WaitForUser,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -23,12 +24,29 @@ pub struct AssistantQuestionOption {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AssistantTextInput {
+    pub placeholder: Option<String>,
+    pub default: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AssistantSecureInput {
+    pub placeholder: Option<String>,
+    pub secret_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AssistantQuestion {
     pub question: String,
     pub header: String,
-    pub options: Vec<AssistantQuestionOption>,
-    #[serde(rename = "multiSelect")]
-    pub multi_select: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<Vec<AssistantQuestionOption>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_input: Option<AssistantTextInput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secure_input: Option<AssistantSecureInput>,
+    #[serde(rename = "multiSelect", skip_serializing_if = "Option::is_none")]
+    pub multi_select: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -39,23 +57,37 @@ pub struct AssistantCardAction {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PlaybookProgress {
+    pub step: u32,
+    pub total: u32,
+    pub label: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AssistantSpaUi {
     pub kind: String,
     pub situation: String,
-    pub plan: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
     pub action: AssistantCardAction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress: Option<PlaybookProgress>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AssistantUserQuestionUi {
     pub kind: String,
     pub questions: Vec<AssistantQuestion>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress: Option<PlaybookProgress>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AssistantInfoUi {
     pub kind: String,
     pub summary: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress: Option<PlaybookProgress>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -105,6 +137,15 @@ fn parse_action_label(s: &str) -> Option<String> {
     Some(rest[..j].trim().to_string())
 }
 
+fn parse_progress(v: &serde_json::Value) -> Option<PlaybookProgress> {
+    let p = v.get("progress")?;
+    Some(PlaybookProgress {
+        step: p.get("step")?.as_u64()? as u32,
+        total: p.get("total")?.as_u64()? as u32,
+        label: p.get("label")?.as_str()?.to_string(),
+    })
+}
+
 fn parse_assistant_ui_json(text: &str) -> Option<AssistantUiPayload> {
     let candidate = if let Some(start) = text.find("```json") {
         let rest = &text[start + "```json".len()..];
@@ -120,18 +161,19 @@ fn parse_assistant_ui_json(text: &str) -> Option<AssistantUiPayload> {
     }
     let v: serde_json::Value = serde_json::from_str(&candidate).ok()?;
     let kind = v.get("kind")?.as_str()?.to_lowercase();
+    let progress = parse_progress(&v);
     match kind.as_str() {
         "done" | "info" => {
             let summary = v.get("summary")?.as_str()?.to_string();
             Some(if kind == "done" {
-                AssistantUiPayload::Done(AssistantInfoUi { kind, summary })
+                AssistantUiPayload::Done(AssistantInfoUi { kind, summary, progress })
             } else {
-                AssistantUiPayload::Info(AssistantInfoUi { kind, summary })
+                AssistantUiPayload::Info(AssistantInfoUi { kind, summary, progress })
             })
         }
         "spa" => {
             let situation = v.get("situation")?.as_str()?.to_string();
-            let plan = v.get("plan")?.as_str()?.to_string();
+            let plan = v.get("plan").and_then(|v| v.as_str()).map(|s| s.to_string());
             let action_v = v.get("action")?;
             let label = action_v.get("label")?.as_str()?.to_string();
             let action_type = action_v
@@ -140,6 +182,7 @@ fn parse_assistant_ui_json(text: &str) -> Option<AssistantUiPayload> {
                 .map(|s| s.to_uppercase())
                 .and_then(|s| match s.as_str() {
                     "RUN_STEP" => Some(AssistantActionType::RunStep),
+                    "WAIT_FOR_USER" => Some(AssistantActionType::WaitForUser),
                     _ => None,
                 })
                 .unwrap_or(AssistantActionType::RunStep);
@@ -151,6 +194,7 @@ fn parse_assistant_ui_json(text: &str) -> Option<AssistantUiPayload> {
                     label,
                     action_type,
                 },
+                progress,
             }))
         }
         "user_question" => {
@@ -164,8 +208,8 @@ fn parse_assistant_ui_json(text: &str) -> Option<AssistantUiPayload> {
                             let header = q.get("header")?.as_str()?.to_string();
                             let multi_select = q
                                 .get("multiSelect")
-                                .and_then(|v| v.as_bool())
-                                .unwrap_or(false);
+                                .and_then(|v| v.as_bool());
+
                             let options = q
                                 .get("options")
                                 .and_then(|o| o.as_array())
@@ -178,12 +222,28 @@ fn parse_assistant_ui_json(text: &str) -> Option<AssistantUiPayload> {
                                             })
                                         })
                                         .collect::<Vec<_>>()
+                                });
+
+                            let text_input = q.get("text_input").map(|ti| {
+                                AssistantTextInput {
+                                    placeholder: ti.get("placeholder").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                    default: ti.get("default").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                }
+                            });
+
+                            let secure_input = q.get("secure_input").and_then(|si| {
+                                Some(AssistantSecureInput {
+                                    placeholder: si.get("placeholder").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                    secret_name: si.get("secret_name")?.as_str()?.to_string(),
                                 })
-                                .unwrap_or_default();
+                            });
+
                             Some(AssistantQuestion {
                                 question,
                                 header,
                                 options,
+                                text_input,
+                                secure_input,
                                 multi_select,
                             })
                         })
@@ -193,6 +253,7 @@ fn parse_assistant_ui_json(text: &str) -> Option<AssistantUiPayload> {
             Some(AssistantUiPayload::UserQuestion(AssistantUserQuestionUi {
                 kind: "user_question".to_string(),
                 questions,
+                progress,
             }))
         }
         _ => None,
@@ -211,6 +272,7 @@ pub fn parse_assistant_ui(text: &str) -> Option<AssistantUiPayload> {
         return Some(AssistantUiPayload::Done(AssistantInfoUi {
             kind: "done".to_string(),
             summary,
+            progress: None,
         }));
     }
     if text.contains("[INFO]") {
@@ -221,6 +283,7 @@ pub fn parse_assistant_ui(text: &str) -> Option<AssistantUiPayload> {
         return Some(AssistantUiPayload::Info(AssistantInfoUi {
             kind: "info".to_string(),
             summary,
+            progress: None,
         }));
     }
 
@@ -231,11 +294,12 @@ pub fn parse_assistant_ui(text: &str) -> Option<AssistantUiPayload> {
     Some(AssistantUiPayload::Spa(AssistantSpaUi {
         kind: "spa".to_string(),
         situation,
-        plan,
+        plan: Some(plan),
         action: AssistantCardAction {
             label,
             action_type: AssistantActionType::RunStep,
         },
+        progress: None,
     }))
 }
 
@@ -376,6 +440,18 @@ pub async fn send_user_event(
 }
 
 #[tauri::command]
+pub async fn store_secret(
+    state: State<'_, AppState>,
+    session_id: String,
+    secret_name: String,
+    secret_value: String,
+) -> Result<(), String> {
+    let mut orch = state.orchestrator.lock().await;
+    orch.store_secret(&session_id, &secret_name, &secret_value);
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn approve_action(
     state: State<'_, AppState>,
     approval_id: String,
@@ -434,7 +510,7 @@ mod tests {
         match ui {
             Some(AssistantUiPayload::Spa(card)) => {
                 assert_eq!(card.situation, "A");
-                assert_eq!(card.plan, "B");
+                assert_eq!(card.plan, Some("B".to_string()));
                 assert_eq!(card.action.label, "Do it");
                 assert_eq!(card.action.action_type, AssistantActionType::RunStep);
             }
@@ -545,7 +621,7 @@ mod tests {
             Some(AssistantUiPayload::UserQuestion(q)) => {
                 assert_eq!(q.questions.len(), 1);
                 assert_eq!(q.questions[0].header, "Choose Setup Approach");
-                assert_eq!(q.questions[0].options.len(), 2);
+                assert_eq!(q.questions[0].options.as_ref().expect("should have options").len(), 2);
             }
             _ => panic!("expected user_question ui, got {:?}", ui),
         }

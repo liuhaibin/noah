@@ -33,6 +33,7 @@ function humanizeActionLabel(label: string, actionType?: string): string {
 
   const mapByType: Record<string, string> = {
     RUN_STEP: "Continue",
+    WAIT_FOR_USER: "I've done this",
   };
 
   if (!raw) return mapByType[type] || "Continue";
@@ -48,6 +49,26 @@ function humanizeActionLabel(label: string, actionType?: string): string {
   }
 
   return raw;
+}
+
+// ── Progress Bar (playbook step indicator) ──
+
+function ProgressBar({ step, total, label }: { step: number; total: number; label: string }) {
+  const pct = Math.min(100, Math.round((step / total) * 100));
+  return (
+    <div className="mb-3">
+      <div className="flex items-center justify-between text-xs text-text-muted mb-1.5">
+        <span className="font-medium text-text-secondary">Step {step} of {total}</span>
+        <span>{label}</span>
+      </div>
+      <div className="w-full h-1.5 rounded-full bg-bg-tertiary overflow-hidden">
+        <div
+          className="h-full rounded-full bg-accent-blue transition-all duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
 }
 
 function LinkedText({ text }: { text: string }) {
@@ -361,47 +382,62 @@ function ActionCard({
   actionTaken,
   isProcessing,
   timestamp,
+  progress,
   onDoIt,
 }: {
   situation: string;
-  plan: string;
+  plan?: string;
   actionLabel: string;
   actionType?: string;
   actionTaken?: boolean;
   isProcessing: boolean;
   timestamp: number;
+  progress?: { step: number; total: number; label: string };
   onDoIt: () => void;
 }) {
   const prettySituation = normalizeSpaText(situation);
-  const prettyPlan = normalizeSpaText(plan);
+  const prettyPlan = plan ? normalizeSpaText(plan) : null;
   const prettyActionLabel = humanizeActionLabel(actionLabel, actionType);
+  const isWaitForUser = actionType === "WAIT_FOR_USER";
 
   return (
     <div className="group animate-fade-in">
       <div className="rounded-xl border border-border-primary/50 bg-bg-secondary overflow-hidden">
-        {/* Situation */}
-        <div className="px-5 pt-4 pb-2">
-          <div className="text-sm font-semibold text-accent-blue mb-1.5 tracking-wide">
-            Situation
-          </div>
-          <div className="rounded-lg border border-accent-blue/20 bg-accent-blue/5 px-3.5 py-3 text-base text-text-primary leading-relaxed">
+        <div className="px-5 pt-4">
+          {progress && <ProgressBar step={progress.step} total={progress.total} label={progress.label} />}
+        </div>
+
+        {/* Situation / Instructions */}
+        <div className={`px-5 ${prettyPlan ? "pb-2" : "pb-3"}`}>
+          {!isWaitForUser && (
+            <div className="text-sm font-semibold text-accent-blue mb-1.5 tracking-wide">
+              Situation
+            </div>
+          )}
+          <div className={`rounded-lg px-3.5 py-3 text-base leading-relaxed ${
+            isWaitForUser
+              ? "border border-border-primary/50 bg-bg-primary text-text-primary"
+              : "border border-accent-blue/20 bg-accent-blue/5 text-text-primary"
+          }`}>
             <div className="whitespace-pre-wrap break-words">
-              <LinkedText text={prettySituation} />
+              <MarkdownSummary text={prettySituation} />
             </div>
           </div>
         </div>
 
-        {/* Plan */}
-        <div className="px-5 pb-3">
-          <div className="text-sm font-semibold text-accent-purple mb-1.5 tracking-wide">
-            Plan
-          </div>
-          <div className="rounded-lg border border-accent-purple/20 bg-accent-purple/5 px-3.5 py-3 text-base text-text-secondary leading-relaxed">
-            <div className="whitespace-pre-wrap break-words">
-              <LinkedText text={prettyPlan} />
+        {/* Plan (only when present) */}
+        {prettyPlan && (
+          <div className="px-5 pb-3">
+            <div className="text-sm font-semibold text-accent-purple mb-1.5 tracking-wide">
+              Plan
+            </div>
+            <div className="rounded-lg border border-accent-purple/20 bg-accent-purple/5 px-3.5 py-3 text-base text-text-secondary leading-relaxed">
+              <div className="whitespace-pre-wrap break-words">
+                <LinkedText text={prettyPlan} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Action button */}
         <div className="px-5 pb-4">
@@ -415,7 +451,9 @@ function ActionCard({
                   ? "bg-bg-tertiary text-text-muted cursor-default"
                   : isProcessing
                     ? "bg-bg-tertiary text-text-muted cursor-not-allowed"
-                    : "bg-accent-blue text-white hover:bg-accent-blue/80"
+                    : isWaitForUser
+                      ? "border-2 border-accent-green text-accent-green hover:bg-accent-green/10"
+                      : "bg-accent-blue text-white hover:bg-accent-blue/80"
               }
             `}
           >
@@ -437,50 +475,123 @@ function UserQuestionCard({
   actionTaken,
   isProcessing,
   timestamp,
+  progress,
   onAnswer,
+  onSecureAnswer,
   onSkip,
 }: {
   questions: AssistantQuestion[];
   actionTaken?: boolean;
   isProcessing: boolean;
   timestamp: number;
+  progress?: { step: number; total: number; label: string };
   onAnswer: (answer: string) => void;
+  onSecureAnswer?: (secretName: string, value: string) => void;
   onSkip: () => void;
 }) {
   const [selectedOption, setSelectedOption] = useState<string>("");
+  const [textValue, setTextValue] = useState<string>("");
+  const [secureValue, setSecureValue] = useState<string>("");
   const first = questions[0];
   if (!first) return null;
+
+  const hasOptions = first.options && first.options.length > 0;
+  const hasTextInput = !!first.text_input;
+  const hasSecureInput = !!first.secure_input;
+
+  // Initialize text input default
+  const defaultValue = first.text_input?.default || "";
+
+  const canSubmit = hasOptions
+    ? !!selectedOption
+    : hasTextInput
+      ? (textValue || defaultValue).trim().length > 0
+      : hasSecureInput
+        ? secureValue.trim().length > 0
+        : false;
+
+  const handleSubmit = () => {
+    if (hasOptions) {
+      onAnswer(selectedOption);
+    } else if (hasTextInput) {
+      onAnswer((textValue || defaultValue).trim());
+    } else if (hasSecureInput && onSecureAnswer) {
+      onSecureAnswer(first.secure_input!.secret_name, secureValue);
+    }
+  };
 
   return (
     <div className="group animate-fade-in">
       <div className="rounded-xl border border-border-primary/50 bg-bg-secondary overflow-hidden">
         <div className="px-5 pt-4 pb-3">
+          {progress && <ProgressBar step={progress.step} total={progress.total} label={progress.label} />}
           <div className="text-sm font-semibold text-accent-blue mb-1.5 tracking-wide">
             {first.header}
           </div>
-          <div className="text-base text-text-primary mb-3">{first.question}</div>
-          <div className="space-y-2">
-            {first.options.map((opt) => (
-              <button
-                key={opt.label}
-                onClick={() => setSelectedOption(opt.label)}
-                disabled={actionTaken || isProcessing}
-                className={`w-full text-left rounded-lg border px-3 py-2 transition-colors cursor-pointer ${
-                  selectedOption === opt.label
-                    ? "border-accent-blue bg-accent-blue/10"
-                    : "border-border-primary bg-bg-secondary hover:bg-bg-tertiary"
-                }`}
-              >
-                <div className="text-sm font-medium text-text-primary">{opt.label}</div>
-                <div className="text-xs text-text-muted">{opt.description}</div>
-              </button>
-            ))}
+          <div className="text-base text-text-primary mb-3">
+            <MarkdownSummary text={first.question} />
           </div>
+
+          {/* Options mode */}
+          {hasOptions && (
+            <div className="space-y-2">
+              {first.options!.map((opt) => (
+                <button
+                  key={opt.label}
+                  onClick={() => setSelectedOption(opt.label)}
+                  disabled={actionTaken || isProcessing}
+                  className={`w-full text-left rounded-lg border px-3 py-2 transition-colors cursor-pointer ${
+                    selectedOption === opt.label
+                      ? "border-accent-blue bg-accent-blue/10"
+                      : "border-border-primary bg-bg-secondary hover:bg-bg-tertiary"
+                  }`}
+                >
+                  <div className="text-sm font-medium text-text-primary">{opt.label}</div>
+                  <div className="text-xs text-text-muted">{opt.description}</div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Text input mode */}
+          {hasTextInput && (
+            <input
+              type="text"
+              value={textValue || defaultValue}
+              onChange={(e) => setTextValue(e.target.value)}
+              placeholder={first.text_input?.placeholder || ""}
+              disabled={actionTaken || isProcessing}
+              className="w-full px-3.5 py-2.5 rounded-lg border border-border-primary bg-bg-primary text-base text-text-primary placeholder-text-muted outline-none focus:border-accent-blue/40 transition-colors"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && canSubmit && !actionTaken && !isProcessing) {
+                  handleSubmit();
+                }
+              }}
+            />
+          )}
+
+          {/* Secure input mode */}
+          {hasSecureInput && (
+            <input
+              type="password"
+              value={secureValue}
+              onChange={(e) => setSecureValue(e.target.value)}
+              placeholder={first.secure_input?.placeholder || ""}
+              disabled={actionTaken || isProcessing}
+              autoComplete="off"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-border-primary bg-bg-primary text-base text-text-primary placeholder-text-muted outline-none focus:border-accent-blue/40 transition-colors"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && canSubmit && !actionTaken && !isProcessing) {
+                  handleSubmit();
+                }
+              }}
+            />
+          )}
         </div>
         <div className="px-5 pb-4">
           <button
-            onClick={() => onAnswer(selectedOption)}
-            disabled={actionTaken || isProcessing || !selectedOption}
+            onClick={handleSubmit}
+            disabled={actionTaken || isProcessing || !canSubmit}
             className="w-full py-2.5 rounded-lg text-base font-medium transition-all cursor-pointer bg-accent-blue text-white hover:bg-accent-blue/80 disabled:opacity-60"
           >
             {actionTaken ? "Sent" : "Submit"}
@@ -689,7 +800,10 @@ function renderFromUiPayload(
   sessionId: string | null,
   onConfirm: (messageId: string) => void,
   onEvent: (eventType: "USER_ANSWER_QUESTION" | "USER_SKIP_OPTIONAL", payload?: string) => void,
+  onSecureAnswer?: (secretName: string, value: string) => void,
 ): React.ReactNode {
+  const progress = "progress" in ui ? ui.progress : undefined;
+
   switch (ui.kind) {
     case "spa":
       return (
@@ -701,6 +815,7 @@ function renderFromUiPayload(
           actionTaken={message.actionTaken}
           isProcessing={isProcessing}
           timestamp={message.timestamp}
+          progress={progress}
           onDoIt={() => onConfirm(message.id)}
         />
       );
@@ -711,9 +826,11 @@ function renderFromUiPayload(
           actionTaken={message.actionTaken}
           isProcessing={isProcessing}
           timestamp={message.timestamp}
+          progress={progress}
           onAnswer={(answer) =>
             onEvent("USER_ANSWER_QUESTION", JSON.stringify({ answer }))
           }
+          onSecureAnswer={onSecureAnswer}
           onSkip={() => onEvent("USER_SKIP_OPTIONAL")}
         />
       );
@@ -747,6 +864,7 @@ function MessageDisplay({
   sessionId,
   onConfirm,
   onEvent,
+  onSecureAnswer,
 }: {
   message: Message;
   isProcessing: boolean;
@@ -754,6 +872,7 @@ function MessageDisplay({
   sessionId: string | null;
   onConfirm: (messageId: string) => void;
   onEvent: (eventType: "USER_ANSWER_QUESTION" | "USER_SKIP_OPTIONAL", payload?: string) => void;
+  onSecureAnswer?: (secretName: string, value: string) => void;
 }) {
   // User confirmation pill
   if (message.role === "user" && message.actionConfirmation) {
@@ -778,6 +897,7 @@ function MessageDisplay({
       sessionId,
       onConfirm,
       onEvent,
+      onSecureAnswer,
     );
   } else {
     // Fall back to parsing text (backward compat for old sessions)
@@ -1088,6 +1208,23 @@ export function ChatPanel() {
     [sendEvent],
   );
 
+  const handleSecureAnswer = useCallback(
+    async (secretName: string, value: string) => {
+      if (!sessionId) return;
+      try {
+        // Store the secret in the orchestrator's secret store (never in LLM context).
+        await commands.storeSecret(sessionId, secretName, value);
+        // Tell the LLM the secret was collected (without the value).
+        sendEvent("USER_ANSWER_QUESTION", JSON.stringify({
+          answer: `[SECRET:${secretName}] stored securely`,
+        }));
+      } catch (err) {
+        console.error("Failed to store secret:", err);
+      }
+    },
+    [sessionId, sendEvent],
+  );
+
   const showWelcome = messages.length === 0 || (messages.length === 1 && messages[0].role === "system");
 
   const inputCard = (
@@ -1177,6 +1314,7 @@ export function ChatPanel() {
                     sessionId={sessionId}
                     onConfirm={sendConfirmation}
                     onEvent={handleEvent}
+                    onSecureAnswer={handleSecureAnswer}
                   />
                 ));
               })()}

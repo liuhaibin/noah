@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use itman_tools::{SafetyTier, Tool, ToolResult};
 
 fn action_type_valid(v: &str) -> bool {
-    matches!(v, "RUN_STEP")
+    matches!(v, "RUN_STEP" | "WAIT_FOR_USER")
 }
 
 fn normalize_action_from_input(input: &Value) -> Result<(String, String)> {
@@ -33,22 +33,23 @@ pub fn ui_payload_from_tool_call(name: &str, input: &Value) -> Result<String> {
                 .ok_or_else(|| anyhow!("missing situation_md"))?;
             let plan = input
                 .get("plan_md")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| anyhow!("missing plan_md"))?;
+                .and_then(|v| v.as_str());
             let (label, action_type) = normalize_action_from_input(input)?;
             if !action_type_valid(&action_type) {
-                return Err(anyhow!("invalid action.type: must be RUN_STEP"));
+                return Err(anyhow!("invalid action.type: must be RUN_STEP or WAIT_FOR_USER"));
             }
-            Ok(json!({
+            let mut payload = json!({
                 "kind": "spa",
                 "situation": situation,
-                "plan": plan,
                 "action": {
                     "label": label,
                     "type": action_type
                 }
-            })
-            .to_string())
+            });
+            if let Some(plan_text) = plan {
+                payload["plan"] = json!(plan_text);
+            }
+            Ok(payload.to_string())
         }
         "ui_user_question" => {
             let questions = input
@@ -66,28 +67,74 @@ pub fn ui_payload_from_tool_call(name: &str, input: &Value) -> Result<String> {
                     .get("header")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| anyhow!("question missing header"))?;
-                let options = q
-                    .get("options")
-                    .and_then(|v| v.as_array())
-                    .ok_or_else(|| anyhow!("question missing options"))?;
-                let mut out_options = Vec::new();
-                for opt in options {
-                    let label = opt
-                        .get("label")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| anyhow!("option missing label"))?;
-                    let description = opt
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| anyhow!("option missing description"))?;
-                    out_options.push(json!({ "label": label, "description": description }));
+
+                let has_options = q.get("options").and_then(|v| v.as_array()).is_some();
+                let has_text_input = q.get("text_input").is_some();
+                let has_secure_input = q.get("secure_input").is_some();
+
+                // Must have exactly one input mode.
+                let mode_count = [has_options, has_text_input, has_secure_input]
+                    .iter()
+                    .filter(|&&v| v)
+                    .count();
+                if mode_count == 0 {
+                    return Err(anyhow!("question must have 'options', 'text_input', or 'secure_input'"));
                 }
-                out.push(json!({
-                    "question": question,
-                    "header": header,
-                    "multiSelect": q.get("multiSelect").and_then(|v| v.as_bool()).unwrap_or(false),
-                    "options": out_options
-                }));
+                if mode_count > 1 {
+                    return Err(anyhow!("question must have only one of 'options', 'text_input', or 'secure_input'"));
+                }
+
+                if has_options {
+                    let options = q.get("options").unwrap().as_array().unwrap();
+                    let mut out_options = Vec::new();
+                    for opt in options {
+                        let label = opt
+                            .get("label")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| anyhow!("option missing label"))?;
+                        let description = opt
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| anyhow!("option missing description"))?;
+                        out_options.push(json!({ "label": label, "description": description }));
+                    }
+                    out.push(json!({
+                        "question": question,
+                        "header": header,
+                        "multiSelect": q.get("multiSelect").and_then(|v| v.as_bool()).unwrap_or(false),
+                        "options": out_options
+                    }));
+                } else if has_text_input {
+                    let ti = q.get("text_input").unwrap();
+                    let mut text_input = json!({});
+                    if let Some(p) = ti.get("placeholder").and_then(|v| v.as_str()) {
+                        text_input["placeholder"] = json!(p);
+                    }
+                    if let Some(d) = ti.get("default").and_then(|v| v.as_str()) {
+                        text_input["default"] = json!(d);
+                    }
+                    out.push(json!({
+                        "question": question,
+                        "header": header,
+                        "text_input": text_input
+                    }));
+                } else {
+                    // secure_input
+                    let si = q.get("secure_input").unwrap();
+                    let secret_name = si
+                        .get("secret_name")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| anyhow!("secure_input missing secret_name"))?;
+                    let mut secure_input = json!({ "secret_name": secret_name });
+                    if let Some(p) = si.get("placeholder").and_then(|v| v.as_str()) {
+                        secure_input["placeholder"] = json!(p);
+                    }
+                    out.push(json!({
+                        "question": question,
+                        "header": header,
+                        "secure_input": secure_input
+                    }));
+                }
             }
             Ok(json!({
                 "kind": "user_question",
@@ -130,19 +177,19 @@ impl Tool for UiSpaTool {
         json!({
           "type":"object",
           "properties":{
-            "situation_md":{"type":"string","description":"Situation text in Markdown format."},
-            "plan_md":{"type":"string","description":"Plan text in Markdown format."},
+            "situation_md":{"type":"string","description":"Situation or instruction text in Markdown format."},
+            "plan_md":{"type":"string","description":"Plan text in Markdown format. Omit when using WAIT_FOR_USER with instructions only."},
             "action":{
               "type":"object",
               "properties":{
-                "label":{"type":"string","description":"Human-readable button label, e.g. 'Fix it'."},
-                "type":{"type":"string","enum":["RUN_STEP"]}
+                "label":{"type":"string","description":"Human-readable button label, e.g. 'Fix it' or 'I've done this'."},
+                "type":{"type":"string","enum":["RUN_STEP","WAIT_FOR_USER"],"description":"RUN_STEP: Noah executes an action. WAIT_FOR_USER: user completes an action outside Noah and confirms."}
               },
               "required":["label","type"],
               "additionalProperties":false
             }
           },
-          "required":["situation_md","plan_md","action"],
+          "required":["situation_md","action"],
           "additionalProperties":false
         })
     }
@@ -157,7 +204,7 @@ impl Tool for UiSpaTool {
 impl Tool for UiUserQuestionTool {
     fn name(&self) -> &str { "ui_user_question" }
     fn description(&self) -> &str {
-        "Ask one or more structured user questions in the UI with selectable options."
+        "Ask the user a question with selectable options, a free-text input, or a secure input for credentials."
     }
     fn input_schema(&self) -> Value {
         json!({
@@ -185,9 +232,28 @@ impl Tool for UiUserQuestionTool {
                       "required":["label","description"],
                       "additionalProperties":false
                     }
+                  },
+                  "text_input":{
+                    "type":"object",
+                    "description":"Free-text input field. Use instead of options when user needs to type a value.",
+                    "properties":{
+                      "placeholder":{"type":"string","description":"Placeholder text for the input field."},
+                      "default":{"type":"string","description":"Pre-filled default value."}
+                    },
+                    "additionalProperties":false
+                  },
+                  "secure_input":{
+                    "type":"object",
+                    "description":"Masked input for credentials. Value is stored securely and never enters LLM context. Use write_secret tool to write it to a file.",
+                    "properties":{
+                      "placeholder":{"type":"string","description":"Placeholder text for the masked field."},
+                      "secret_name":{"type":"string","description":"Reference name for this secret (e.g. 'api_key'). Used with write_secret tool."}
+                    },
+                    "required":["secret_name"],
+                    "additionalProperties":false
                   }
                 },
-                "required":["header","question_md","options"],
+                "required":["header","question_md"],
                 "additionalProperties":false
               }
             }
@@ -241,11 +307,79 @@ impl Tool for UiDoneTool {
     }
 }
 
+// ── Write Secret Tool ─────────────────────────────────────────────────
+
+struct WriteSecretTool;
+
+#[async_trait]
+impl Tool for WriteSecretTool {
+    fn name(&self) -> &str { "write_secret" }
+    fn description(&self) -> &str {
+        "Write a previously collected secure_input value to a file. The secret value is substituted by the runtime — you never see it."
+    }
+    fn input_schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "secret_name": {
+                    "type": "string",
+                    "description": "The secret_name from the secure_input that collected this value."
+                },
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the file to write to (e.g. '.env', 'config.json')."
+                },
+                "format": {
+                    "type": "string",
+                    "description": "Line to write, with {{value}} as placeholder for the secret. E.g. 'API_KEY={{value}}'"
+                }
+            },
+            "required": ["secret_name", "file_path", "format"],
+            "additionalProperties": false
+        })
+    }
+    fn safety_tier(&self) -> SafetyTier { SafetyTier::SafeAction }
+    async fn execute(&self, input: &Value) -> Result<ToolResult> {
+        // The orchestrator substitutes __secret_value__ before calling execute.
+        // If it's still the placeholder, the secret wasn't found.
+        let secret_value = input
+            .get("__secret_value__")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("Secret not found. Was it collected via secure_input?"))?;
+        let file_path = input
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("missing file_path"))?;
+        let format = input
+            .get("format")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("missing format"))?;
+
+        let line = format.replace("{{value}}", secret_value);
+
+        // Append to file (create if needed).
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(file_path)
+            .map_err(|e| anyhow!("Failed to open {}: {}", file_path, e))?;
+        writeln!(file, "{}", line)
+            .map_err(|e| anyhow!("Failed to write to {}: {}", file_path, e))?;
+
+        Ok(ToolResult::read_only(
+            format!("Secret written to {} (value redacted)", file_path),
+            serde_json::json!({"written_to": file_path}),
+        ))
+    }
+}
+
 pub fn register_ui_tools(router: &mut crate::agent::tool_router::ToolRouter) {
     router.register(Box::new(UiSpaTool));
     router.register(Box::new(UiUserQuestionTool));
     router.register(Box::new(UiInfoTool));
     router.register(Box::new(UiDoneTool));
+    router.register(Box::new(WriteSecretTool));
 }
 
 #[cfg(test)]
@@ -263,6 +397,44 @@ mod tests {
         let v: Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v["kind"], "spa");
         assert_eq!(v["action"]["type"], "RUN_STEP");
+        assert_eq!(v["plan"], "Kill heavy process");
+    }
+
+    #[test]
+    fn valid_spa_wait_for_user() {
+        let input = json!({
+            "situation_md": "## Create a Bot\n\n1. Open Telegram\n2. Search @BotFather",
+            "action": {"label": "I've done this", "type": "WAIT_FOR_USER"}
+        });
+        let result = ui_payload_from_tool_call("ui_spa", &input).unwrap();
+        let v: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["kind"], "spa");
+        assert_eq!(v["action"]["type"], "WAIT_FOR_USER");
+        assert!(v.get("plan").is_none(), "plan should be absent when plan_md omitted");
+    }
+
+    #[test]
+    fn spa_optional_plan_md() {
+        // With plan_md
+        let with_plan = json!({
+            "situation_md": "Issue found",
+            "plan_md": "Here's the fix",
+            "action": {"label": "Fix", "type": "RUN_STEP"}
+        });
+        let v: Value = serde_json::from_str(
+            &ui_payload_from_tool_call("ui_spa", &with_plan).unwrap(),
+        ).unwrap();
+        assert_eq!(v["plan"], "Here's the fix");
+
+        // Without plan_md
+        let without_plan = json!({
+            "situation_md": "Do this task",
+            "action": {"label": "Done", "type": "WAIT_FOR_USER"}
+        });
+        let v: Value = serde_json::from_str(
+            &ui_payload_from_tool_call("ui_spa", &without_plan).unwrap(),
+        ).unwrap();
+        assert!(v.get("plan").is_none());
     }
 
     #[test]
@@ -276,7 +448,7 @@ mod tests {
     }
 
     #[test]
-    fn valid_user_question() {
+    fn valid_user_question_options() {
         let input = json!({
             "questions": [{
                 "header": "Choose",
@@ -290,6 +462,68 @@ mod tests {
         let result = ui_payload_from_tool_call("ui_user_question", &input).unwrap();
         let v: Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v["kind"], "user_question");
+        assert!(v["questions"][0].get("options").is_some());
+    }
+
+    #[test]
+    fn valid_user_question_text_input() {
+        let input = json!({
+            "questions": [{
+                "header": "Trigger Word",
+                "question_md": "What trigger word?",
+                "text_input": {
+                    "placeholder": "e.g., Andy",
+                    "default": "Andy"
+                }
+            }]
+        });
+        let result = ui_payload_from_tool_call("ui_user_question", &input).unwrap();
+        let v: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["kind"], "user_question");
+        assert_eq!(v["questions"][0]["text_input"]["default"], "Andy");
+        assert!(v["questions"][0].get("options").is_none());
+    }
+
+    #[test]
+    fn valid_user_question_secure_input() {
+        let input = json!({
+            "questions": [{
+                "header": "API Key",
+                "question_md": "Paste your key",
+                "secure_input": {
+                    "placeholder": "sk-...",
+                    "secret_name": "api_key"
+                }
+            }]
+        });
+        let result = ui_payload_from_tool_call("ui_user_question", &input).unwrap();
+        let v: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["kind"], "user_question");
+        assert_eq!(v["questions"][0]["secure_input"]["secret_name"], "api_key");
+    }
+
+    #[test]
+    fn user_question_rejects_mixed_input_modes() {
+        let input = json!({
+            "questions": [{
+                "header": "Bad",
+                "question_md": "Both options and text_input",
+                "options": [{"label": "A", "description": "A"}],
+                "text_input": {"placeholder": "x"}
+            }]
+        });
+        assert!(ui_payload_from_tool_call("ui_user_question", &input).is_err());
+    }
+
+    #[test]
+    fn user_question_rejects_no_input_mode() {
+        let input = json!({
+            "questions": [{
+                "header": "Bad",
+                "question_md": "No input mode"
+            }]
+        });
+        assert!(ui_payload_from_tool_call("ui_user_question", &input).is_err());
     }
 
     #[test]

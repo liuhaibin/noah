@@ -2,7 +2,7 @@ export type ParsedResponse =
   | {
       type: "action";
       situation: string;
-      plan: string;
+      plan?: string;
       actionLabel: string;
       actionType?: string;
     }
@@ -11,8 +11,10 @@ export type ParsedResponse =
       questions: Array<{
         question: string;
         header: string;
-        options: Array<{ label: string; description: string }>;
-        multiSelect: boolean;
+        options?: Array<{ label: string; description: string }>;
+        text_input?: { placeholder?: string; default?: string };
+        secure_input?: { placeholder?: string; secret_name: string };
+        multiSelect?: boolean;
       }>;
     }
   | { type: "done"; summary: string }
@@ -61,7 +63,6 @@ export function parseResponse(raw: string): ParsedResponse {
         if (
           kind === "spa" &&
           obj.situation &&
-          obj.plan &&
           obj.action?.label
         ) {
           return {

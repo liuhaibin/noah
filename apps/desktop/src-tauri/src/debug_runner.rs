@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 use crate::agent::llm_client::LlmClient;
 use crate::agent::orchestrator::{Orchestrator, PendingApprovals};
 use crate::agent::tool_router::ToolRouter;
-use crate::commands::agent::{parse_assistant_ui, AssistantUiPayload};
+use crate::commands::agent::{parse_assistant_ui, AssistantActionType, AssistantUiPayload};
 use crate::knowledge;
 use crate::machine_context::MachineContext;
 use crate::platform;
@@ -152,7 +152,7 @@ pub async fn run_prompt_flow(prompt: &str, max_turns: usize) -> Result<PromptRun
         }
 
         let output = match tokio::time::timeout(
-            std::time::Duration::from_secs(90),
+            std::time::Duration::from_secs(600),
             orchestrator.send_message(&session_id, &input, &app_handle, &db_arc),
         )
         .await
@@ -176,14 +176,53 @@ pub async fn run_prompt_flow(prompt: &str, max_turns: usize) -> Result<PromptRun
                 reached_done = true;
                 break;
             }
-            Some(AssistantUiPayload::Spa(_)) => {
-                // Auto-confirm: "Go ahead"
-                input = "Go ahead".to_string();
+            Some(AssistantUiPayload::Spa(ref spa)) => {
+                // WAIT_FOR_USER: simulate user completing external action.
+                if spa.action.action_type == AssistantActionType::WaitForUser {
+                    input = "I've done this, let's continue.".to_string();
+                } else {
+                    input = "Go ahead".to_string();
+                }
                 continue;
             }
-            Some(AssistantUiPayload::UserQuestion(_)) => {
-                // Pick first option for each question
-                input = "Pick the first option for each question.".to_string();
+            Some(AssistantUiPayload::UserQuestion(ref uq)) => {
+                // Generate a reasonable auto-answer based on question type.
+                let q = &uq.questions[0];
+                if q.secure_input.is_some() {
+                    // For secure inputs, store a dummy secret value via orchestrator.
+                    let secret_name = q.secure_input.as_ref().unwrap().secret_name.clone();
+                    orchestrator.store_secret(&session_id, &secret_name, "test-secret-value-12345");
+                    input = format!("[SECRET:{}] stored securely", secret_name);
+                } else if q.text_input.is_some() {
+                    // Provide a plausible test answer based on the question context.
+                    let header = q.header.to_lowercase();
+                    let question = q.question.to_lowercase();
+                    let answer = if header.contains("email") || question.contains("email") {
+                        "testuser@example.com".to_string()
+                    } else if header.contains("ssid") || question.contains("ssid") || question.contains("wi-fi") || question.contains("wifi") || question.contains("network name") {
+                        "TestNetwork".to_string()
+                    } else if header.contains("server") || question.contains("server") {
+                        "mail.example.com".to_string()
+                    } else if header.contains("drive") || question.contains("drive") || question.contains("connect") {
+                        "My Backup Drive, 1TB, appears in Finder".to_string()
+                    } else if header.contains("username") || question.contains("username") {
+                        "testuser".to_string()
+                    } else if header.contains("path") || question.contains("path") || question.contains("folder") {
+                        "/Users/test/Documents".to_string()
+                    } else {
+                        "test-input-value".to_string()
+                    };
+                    input = answer;
+                } else if let Some(ref opts) = q.options {
+                    // Pick the first option.
+                    if let Some(first) = opts.first() {
+                        input = first.label.clone();
+                    } else {
+                        input = "Yes".to_string();
+                    }
+                } else {
+                    input = "Yes".to_string();
+                }
                 continue;
             }
             Some(AssistantUiPayload::Info(_)) => {
@@ -191,8 +230,9 @@ pub async fn run_prompt_flow(prompt: &str, max_turns: usize) -> Result<PromptRun
                 break;
             }
             None => {
-                // No UI payload parsed — could be legacy or plain text, break
-                break;
+                // No UI payload — plain text response. Continue with a generic followup.
+                input = "Continue. Please use the structured UI tools (ui_spa, ui_user_question, ui_info, or ui_done) to present your response.".to_string();
+                continue;
             }
         }
     }

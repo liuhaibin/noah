@@ -55,18 +55,30 @@ export interface KnowledgeEntry {
 
 // ── UI Protocol Types ──
 
-export type AssistantActionType = "RUN_STEP";
+export type AssistantActionType = "RUN_STEP" | "WAIT_FOR_USER";
 
 export interface AssistantQuestionOption {
   label: string;
   description: string;
 }
 
+export interface AssistantTextInput {
+  placeholder?: string;
+  default?: string;
+}
+
+export interface AssistantSecureInput {
+  placeholder?: string;
+  secret_name: string;
+}
+
 export interface AssistantQuestion {
   question: string;
   header: string;
-  options: AssistantQuestionOption[];
-  multiSelect: boolean;
+  options?: AssistantQuestionOption[];
+  text_input?: AssistantTextInput;
+  secure_input?: AssistantSecureInput;
+  multiSelect?: boolean;
 }
 
 export interface AssistantCardAction {
@@ -74,21 +86,30 @@ export interface AssistantCardAction {
   type: AssistantActionType;
 }
 
+export interface PlaybookProgress {
+  step: number;
+  total: number;
+  label: string;
+}
+
 export interface AssistantUiSpa {
   kind: "spa";
   situation: string;
-  plan: string;
+  plan?: string;
   action: AssistantCardAction;
+  progress?: PlaybookProgress;
 }
 
 export interface AssistantUiUserQuestion {
   kind: "user_question";
   questions: AssistantQuestion[];
+  progress?: PlaybookProgress;
 }
 
 export interface AssistantUiInfo {
   kind: "done" | "info";
   summary: string;
+  progress?: PlaybookProgress;
 }
 
 export type AssistantUiPayload =
@@ -329,4 +350,12 @@ export async function recordActionConfirmation(
   message: string,
 ): Promise<void> {
   await invoke<void>("record_action_confirmation", { sessionId, message });
+}
+
+export async function storeSecret(
+  sessionId: string,
+  secretName: string,
+  secretValue: string,
+): Promise<void> {
+  await invoke<void>("store_secret", { sessionId, secretName, secretValue });
 }

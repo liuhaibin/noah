@@ -21,6 +21,111 @@ pub struct PlaybookMeta {
     pub playbook_type: String,
 }
 
+// ── Playbook runtime structures ──────────────────────────────────────
+
+/// A step parsed from the playbook markdown body.
+#[derive(Debug, Clone)]
+pub struct PlaybookStep {
+    pub number: u32,
+    pub label: String,
+}
+
+/// Runtime state for an active playbook session. Managed by the orchestrator,
+/// not the LLM. Tracks progress deterministically.
+#[derive(Debug, Clone)]
+pub struct PlaybookState {
+    pub name: String,
+    pub steps: Vec<PlaybookStep>,
+    pub total_steps: u32,
+    /// Number of interactive ui_* turns completed so far.
+    pub current_turn: u32,
+}
+
+impl PlaybookState {
+    /// Create from a playbook's full markdown content.
+    pub fn from_content(name: &str, content: &str) -> Self {
+        let steps = parse_steps(content);
+        let total = if steps.is_empty() { 1 } else { steps.len() as u32 };
+        Self {
+            name: name.to_string(),
+            steps,
+            total_steps: total,
+            current_turn: 0,
+        }
+    }
+
+    /// Get the current progress as a JSON value to inject into ui_* payloads.
+    /// Returns None if there are no defined steps (diagnostic playbooks).
+    pub fn progress_json(&self) -> Option<serde_json::Value> {
+        if self.steps.is_empty() {
+            return None;
+        }
+        let step_index = (self.current_turn as usize).min(self.steps.len().saturating_sub(1));
+        let step = &self.steps[step_index];
+        Some(serde_json::json!({
+            "step": step.number,
+            "total": self.total_steps,
+            "label": step.label
+        }))
+    }
+
+    /// Advance one interactive turn.
+    pub fn advance(&mut self) {
+        self.current_turn += 1;
+    }
+}
+
+/// Parse `## Step N: Label` headers from playbook markdown.
+/// Falls back to any `## ` headers with a leading number pattern.
+/// This is the playbook DSL: step structure is declared by markdown headers.
+fn parse_steps(content: &str) -> Vec<PlaybookStep> {
+    let mut steps = Vec::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        // Match: ## Step 1: Check Environment
+        // Match: ## 1. Check Environment
+        // Match: ## Step 1 — Check Environment
+        if let Some(rest) = trimmed.strip_prefix("## ") {
+            let rest = rest.trim();
+            // Try "Step N: Label" or "Step N — Label" or "Step N. Label"
+            if let Some(after_step) = rest.strip_prefix("Step ").or_else(|| rest.strip_prefix("step ")) {
+                if let Some((num_str, label)) = split_step_number(after_step) {
+                    if let Ok(n) = num_str.parse::<u32>() {
+                        steps.push(PlaybookStep { number: n, label: label.to_string() });
+                        continue;
+                    }
+                }
+            }
+            // Try "N. Label" or "N: Label"
+            if let Some((num_str, label)) = split_step_number(rest) {
+                if let Ok(n) = num_str.parse::<u32>() {
+                    steps.push(PlaybookStep { number: n, label: label.to_string() });
+                }
+            }
+        }
+    }
+    steps
+}
+
+/// Split "3: Configure" or "3. Configure" or "3 — Configure" into ("3", "Configure").
+fn split_step_number(s: &str) -> Option<(&str, &str)> {
+    // Find where digits end
+    let num_end = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
+    if num_end == 0 { return None; }
+    let num_str = &s[..num_end];
+    let rest = s[num_end..].trim();
+    // Strip separator: ":", ".", "—", "-", " "
+    let label = rest
+        .strip_prefix(':')
+        .or_else(|| rest.strip_prefix('.'))
+        .or_else(|| rest.strip_prefix('—'))
+        .or_else(|| rest.strip_prefix('-'))
+        .unwrap_or(rest)
+        .trim();
+    if label.is_empty() { return None; }
+    Some((num_str, label))
+}
+
 /// Registry of available playbooks, loaded at startup.
 pub struct PlaybookRegistry {
     pub playbooks_dir: PathBuf,
@@ -69,6 +174,26 @@ const BUILTIN_PLAYBOOKS: &[(&str, &str)] = &[
     (
         "windows-printer-repair.md",
         include_str!("../playbooks/windows-printer-repair.md"),
+    ),
+    (
+        "setup-homebrew.md",
+        include_str!("../playbooks/setup-homebrew.md"),
+    ),
+    (
+        "setup-ssh-key.md",
+        include_str!("../playbooks/setup-ssh-key.md"),
+    ),
+    (
+        "setup-wifi-profile.md",
+        include_str!("../playbooks/setup-wifi-profile.md"),
+    ),
+    (
+        "setup-backup.md",
+        include_str!("../playbooks/setup-backup.md"),
+    ),
+    (
+        "setup-email-account.md",
+        include_str!("../playbooks/setup-email-account.md"),
     ),
 ];
 
@@ -697,9 +822,9 @@ mod tests {
 
         for (filename, content) in BUILTIN_PLAYBOOKS {
             let meta = parse_frontmatter(content).unwrap();
-            if meta.platform != "macos" {
-                continue; // Only check macOS playbooks for mac_* tool refs.
-            }
+            if meta.platform != "macos" { continue; }
+            // Procedural playbooks use ui_* tools and reference tools in doc sections.
+            if is_procedural(content) { continue; }
 
             // Find backtick-quoted tool references in the playbook body.
             for cap in content.split('`') {
@@ -777,9 +902,9 @@ mod tests {
     fn test_cross_platform_playbooks_avoid_platform_tool_names() {
         for (filename, content) in BUILTIN_PLAYBOOKS {
             let meta = parse_frontmatter(content).unwrap();
-            if meta.platform != "all" {
-                continue;
-            }
+            if meta.platform != "all" { continue; }
+            // Procedural playbooks may mention platform tools in "Tools referenced" docs.
+            if is_procedural(content) { continue; }
 
             // Check backtick-quoted words for platform-prefixed tool names.
             let mut in_backtick = false;
@@ -801,11 +926,16 @@ mod tests {
 
     // ── Quality guardrails ────────────────────────────────────────────
 
-    /// Every playbook must have an Escalation section — a bail-out path
-    /// so Noah doesn't endlessly retry when the problem is beyond local fixes.
+    /// Returns true if this playbook is procedural (has `## Step N:` headers).
+    fn is_procedural(content: &str) -> bool {
+        !parse_steps(content).is_empty()
+    }
+
+    /// Every diagnostic playbook must have an Escalation section.
     #[test]
     fn test_builtin_playbooks_have_escalation_section() {
         for (filename, content) in BUILTIN_PLAYBOOKS {
+            if is_procedural(content) { continue; }
             assert!(
                 content.contains("## Escalation"),
                 "Playbook {} is missing '## Escalation' section. Every playbook needs a bail-out path.",
@@ -814,11 +944,11 @@ mod tests {
         }
     }
 
-    /// Every playbook must have a Caveats section — conditions that change
-    /// the standard fix path. Forces authors to think about edge cases.
+    /// Every diagnostic playbook must have a Caveats section.
     #[test]
     fn test_builtin_playbooks_have_caveats_section() {
         for (filename, content) in BUILTIN_PLAYBOOKS {
+            if is_procedural(content) { continue; }
             assert!(
                 content.contains("## Caveats"),
                 "Playbook {} is missing '## Caveats' section. Document when the standard path doesn't apply.",
@@ -827,11 +957,11 @@ mod tests {
         }
     }
 
-    /// Every playbook must have a Key signals section — pattern matching
-    /// for common user phrases that redirect the diagnosis.
+    /// Every diagnostic playbook must have a Key signals section.
     #[test]
     fn test_builtin_playbooks_have_key_signals_section() {
         for (filename, content) in BUILTIN_PLAYBOOKS {
+            if is_procedural(content) { continue; }
             assert!(
                 content.contains("## Key signals"),
                 "Playbook {} is missing '## Key signals' section.",
@@ -840,12 +970,11 @@ mod tests {
         }
     }
 
-    /// Every playbook should claim a success rate (e.g. "~80%") somewhere.
-    /// This forces the author to think about confidence and tells the LLM
-    /// how aggressively to follow the standard path.
+    /// Every diagnostic playbook should claim a success rate.
     #[test]
     fn test_builtin_playbooks_claim_success_rate() {
         for (filename, content) in BUILTIN_PLAYBOOKS {
+            if is_procedural(content) { continue; }
             assert!(
                 content.contains('%'),
                 "Playbook {} never mentions a success rate (e.g. '~80%'). \
@@ -886,6 +1015,96 @@ mod tests {
                 filename
             );
         }
+    }
+
+    // ── Step parsing ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_steps_standard_format() {
+        let content = r#"---
+name: test
+description: test
+---
+# Setup
+
+## Step 1: Check Environment
+Do stuff.
+
+## Step 2: Install Dependencies
+More stuff.
+
+## Step 3: Configure
+Final stuff.
+"#;
+        let steps = parse_steps(content);
+        assert_eq!(steps.len(), 3);
+        assert_eq!(steps[0].number, 1);
+        assert_eq!(steps[0].label, "Check Environment");
+        assert_eq!(steps[2].number, 3);
+        assert_eq!(steps[2].label, "Configure");
+    }
+
+    #[test]
+    fn test_parse_steps_numbered_format() {
+        let content = "## 1. Check\n## 2. Install\n## 3. Done\n";
+        let steps = parse_steps(content);
+        assert_eq!(steps.len(), 3);
+        assert_eq!(steps[0].label, "Check");
+        assert_eq!(steps[1].label, "Install");
+    }
+
+    #[test]
+    fn test_parse_steps_dash_separator() {
+        let content = "## Step 1 — Check Environment\n## Step 2 — Build\n";
+        let steps = parse_steps(content);
+        assert_eq!(steps.len(), 2);
+        assert_eq!(steps[0].label, "Check Environment");
+    }
+
+    #[test]
+    fn test_parse_steps_diagnostic_playbook_no_steps() {
+        // Diagnostic playbooks use "### 1." not "## Step 1:"
+        let content = r#"## When to activate
+User reports...
+### 1. Check Wi-Fi
+### 2. Check gateway
+"#;
+        let steps = parse_steps(content);
+        assert!(steps.is_empty(), "Diagnostic playbooks should have no steps (### not ##)");
+    }
+
+    #[test]
+    fn test_playbook_state_progress() {
+        let content = "## Step 1: Check\nstuff\n## Step 2: Build\nstuff\n## Step 3: Done\n";
+        let mut state = PlaybookState::from_content("test", content);
+        assert_eq!(state.total_steps, 3);
+
+        let p = state.progress_json().unwrap();
+        assert_eq!(p["step"], 1);
+        assert_eq!(p["total"], 3);
+        assert_eq!(p["label"], "Check");
+
+        state.advance();
+        let p = state.progress_json().unwrap();
+        assert_eq!(p["step"], 2);
+        assert_eq!(p["label"], "Build");
+
+        state.advance();
+        let p = state.progress_json().unwrap();
+        assert_eq!(p["step"], 3);
+        assert_eq!(p["label"], "Done");
+
+        // Past the end — stays at last step
+        state.advance();
+        let p = state.progress_json().unwrap();
+        assert_eq!(p["step"], 3);
+    }
+
+    #[test]
+    fn test_playbook_state_no_steps() {
+        let content = "# Network Diagnostics\n## When to activate\n## Quick check\n";
+        let state = PlaybookState::from_content("net", content);
+        assert!(state.progress_json().is_none());
     }
 
     /// last_reviewed must be a valid YYYY-MM-DD date and not older than 6 months.

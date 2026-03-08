@@ -7,7 +7,33 @@ const MODEL: &str = "claude-sonnet-4-20250514";
 const TITLE_MODEL: &str = "claude-haiku-4-5-20251001";
 const API_VERSION: &str = "2023-06-01";
 const MAX_TOKENS: u32 = 4096;
-const REQUEST_TIMEOUT_SECS: u64 = 90;
+/// HTTP request timeout — higher for local LLMs which are slower.
+fn request_timeout_secs() -> u64 {
+    std::env::var("NOAH_TIMEOUT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(if env_api_url().is_some() { 300 } else { 90 })
+}
+
+/// Override API URL via NOAH_API_URL env var (e.g. "http://127.0.0.1:8082").
+fn env_api_url() -> Option<String> {
+    std::env::var("NOAH_API_URL").ok().filter(|s| !s.is_empty())
+}
+
+/// Override model via NOAH_MODEL env var (e.g. "local").
+fn effective_model() -> String {
+    std::env::var("NOAH_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| MODEL.to_string())
+}
+
+fn effective_model_or(default: &str) -> String {
+    std::env::var("NOAH_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| default.to_string())
+}
 
 // ── Diagnostic analysis result ─────────────────────────────────────────
 
@@ -168,7 +194,7 @@ fn friendly_api_error(status: reqwest::StatusCode, body: &str) -> String {
 impl LlmClient {
     pub fn new(api_key: String) -> Self {
         let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .timeout(std::time::Duration::from_secs(request_timeout_secs()))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
         Self {
@@ -179,7 +205,7 @@ impl LlmClient {
 
     pub fn with_auth(auth: AuthMode) -> Self {
         let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .timeout(std::time::Duration::from_secs(request_timeout_secs()))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
         Self { auth, client }
@@ -198,6 +224,10 @@ impl LlmClient {
     }
 
     pub fn has_auth(&self) -> bool {
+        // Local server override needs no auth.
+        if env_api_url().is_some() {
+            return true;
+        }
         match &self.auth {
             AuthMode::ApiKey(key) => !key.is_empty(),
             AuthMode::Proxy { token, .. } => !token.is_empty(),
@@ -211,8 +241,11 @@ impl LlmClient {
         }
     }
 
-    /// Get the API URL based on auth mode.
+    /// Get the API URL based on auth mode (env override takes priority).
     fn api_url(&self) -> String {
+        if let Some(url) = env_api_url() {
+            return format!("{}/v1/messages", url.trim_end_matches('/'));
+        }
         match &self.auth {
             AuthMode::ApiKey(_) => ANTHROPIC_API_URL.to_string(),
             AuthMode::Proxy { base_url, .. } => format!("{}/v1/messages", base_url.trim_end_matches('/')),
@@ -230,7 +263,7 @@ impl LlmClient {
     /// Generate a short session title from the first user message using a fast, cheap model.
     pub async fn generate_title(&self, user_message: &str) -> Result<String> {
         let body = ApiRequest {
-            model: TITLE_MODEL.to_string(),
+            model: effective_model_or(TITLE_MODEL),
             max_tokens: 30,
             system: system_text("Generate a short title (max 6 words) for a computer support session based on the user's message. Output only the title, nothing else. No quotes."),
             messages: vec![Message {
@@ -277,7 +310,7 @@ impl LlmClient {
     /// Generate a brief session summary using Haiku.
     pub async fn generate_session_summary(&self, messages_text: &str) -> Result<String> {
         let body = ApiRequest {
-            model: TITLE_MODEL.to_string(),
+            model: effective_model_or(TITLE_MODEL),
             max_tokens: 200,
             system: system_text("Summarize this IT support session in 2-3 short bullet points. Focus on: what was the problem, what was done, and the outcome. Be concise. Use plain language."),
             messages: vec![Message {
@@ -337,7 +370,7 @@ impl LlmClient {
         );
 
         let body = ApiRequest {
-            model: TITLE_MODEL.to_string(),
+            model: effective_model_or(TITLE_MODEL),
             max_tokens: 200,
             system: system_text(&system),
             messages: vec![Message {
@@ -399,7 +432,7 @@ impl LlmClient {
         system: Vec<crate::agent::prompts::SystemBlock>,
     ) -> Result<Response> {
         let body = ApiRequest {
-            model: MODEL.to_string(),
+            model: effective_model(),
             max_tokens: MAX_TOKENS,
             system,
             messages,

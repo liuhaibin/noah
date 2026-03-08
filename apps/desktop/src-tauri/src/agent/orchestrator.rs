@@ -16,6 +16,7 @@ use crate::agent::llm_client::{
 use crate::agent::prompts;
 use crate::agent::tool_router::ToolRouter;
 use crate::knowledge;
+use crate::playbooks::PlaybookState;
 use crate::safety::journal;
 use crate::ui_tools;
 
@@ -56,6 +57,11 @@ pub struct Session {
     pub id: String,
     pub messages: Vec<Message>,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// Active playbook state for progress tracking. Set when `activate_playbook` is called.
+    pub playbook: Option<PlaybookState>,
+    /// Ephemeral secret store for secure_input values. Keyed by `secret_name`.
+    /// Values never enter LLM context. Cleared when session ends.
+    pub secrets: HashMap<String, String>,
 }
 
 pub struct Orchestrator {
@@ -103,9 +109,25 @@ impl Orchestrator {
             id: id.clone(),
             messages: Vec::new(),
             created_at: chrono::Utc::now(),
+            playbook: None,
+            secrets: HashMap::new(),
         };
         self.sessions.insert(id.clone(), session);
         id
+    }
+
+    /// Store a secret value from a secure_input response. Never enters LLM context.
+    pub fn store_secret(&mut self, session_id: &str, name: &str, value: &str) {
+        if let Some(session) = self.sessions.get_mut(session_id) {
+            session.secrets.insert(name.to_string(), value.to_string());
+        }
+    }
+
+    /// Retrieve a stored secret by name (for write_secret tool).
+    pub fn get_secret(&self, session_id: &str, name: &str) -> Option<String> {
+        self.sessions
+            .get(session_id)
+            .and_then(|s| s.secrets.get(name).cloned())
     }
 
     pub fn get_session(&self, session_id: &str) -> Option<&Session> {
@@ -359,6 +381,29 @@ impl Orchestrator {
                     let (tool_use_id, name, input) = ui_calls[0];
                     match ui_tools::ui_payload_from_tool_call(name, input) {
                         Ok(payload) => {
+                            // Inject playbook progress if active.
+                            let payload = {
+                                let session = self.sessions.get_mut(session_id).unwrap();
+                                let payload = if let Some(ref mut pb) = session.playbook {
+                                    if let Some(progress) = pb.progress_json() {
+                                        // Parse, inject progress, re-serialize.
+                                        if let Ok(mut v) = serde_json::from_str::<Value>(&payload) {
+                                            v["progress"] = progress;
+                                            pb.advance();
+                                            v.to_string()
+                                        } else {
+                                            pb.advance();
+                                            payload
+                                        }
+                                    } else {
+                                        payload
+                                    }
+                                } else {
+                                    payload
+                                };
+                                payload
+                            };
+
                             let session = self.sessions.get_mut(session_id).unwrap();
                             session.messages.push(Message {
                                 role: "user".to_string(),
@@ -436,6 +481,30 @@ impl Orchestrator {
 
                 match result {
                     Ok(ref output) => {
+                        // Detect activate_playbook and set up runtime state.
+                        if tool_name == "activate_playbook" {
+                            if let Some(pb_name) = tool_input.get("name").and_then(|v| v.as_str()) {
+                                let state = PlaybookState::from_content(pb_name, output);
+                                if !state.steps.is_empty() {
+                                    emit_debug(
+                                        app_handle,
+                                        "playbook_activated",
+                                        &format!("Playbook '{}' activated with {} steps", pb_name, state.total_steps),
+                                        json!({
+                                            "playbook": pb_name,
+                                            "total_steps": state.total_steps,
+                                            "steps": state.steps.iter().map(|s| json!({
+                                                "number": s.number,
+                                                "label": s.label,
+                                            })).collect::<Vec<_>>(),
+                                        }),
+                                    );
+                                }
+                                let session = self.sessions.get_mut(session_id).unwrap();
+                                session.playbook = Some(state);
+                            }
+                        }
+
                         emit_debug(
                             app_handle,
                             "tool_result",
@@ -494,6 +563,20 @@ impl Orchestrator {
             .router
             .find_tool(tool_name)
             .context(format!("Unknown tool: {}", tool_name))?;
+
+        // For write_secret, inject the actual secret value from the session's secret store.
+        let tool_input = if tool_name == "write_secret" {
+            let mut input = tool_input.clone();
+            if let Some(secret_name) = input.get("secret_name").and_then(|v| v.as_str()) {
+                if let Some(secret_value) = self.get_secret(session_id, secret_name) {
+                    input["__secret_value__"] = json!(secret_value);
+                }
+            }
+            input
+        } else {
+            tool_input.clone()
+        };
+        let tool_input = &tool_input;
 
         let tier = tool.safety_tier_for_input(tool_input);
 

@@ -290,6 +290,7 @@ pub fn run() {
             commands::agent::send_message_v2,
             commands::agent::send_user_event,
             commands::agent::record_action_confirmation,
+            commands::agent::store_secret,
             commands::agent::approve_action,
             commands::agent::deny_action,
             commands::agent::cancel_processing,
