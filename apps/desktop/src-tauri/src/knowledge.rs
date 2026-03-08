@@ -209,26 +209,26 @@ pub fn list_knowledge_tree(
     Ok(entries)
 }
 
-/// Build a table-of-contents string for the system prompt.
+/// Build a compact table-of-contents string for the system prompt.
+///
+/// Format: one line per category with just the slug names.
+/// The LLM can read a file via `read_knowledge` with path `{category}/{slug}.md`.
 pub fn knowledge_toc(knowledge_dir: &Path) -> Result<String> {
     let entries = list_knowledge_tree(knowledge_dir, None)?;
     if entries.is_empty() {
         return Ok(String::new());
     }
 
-    let mut lines = vec![
-        "## Knowledge Base".to_string(),
-        "Use `search_knowledge` or `read_knowledge` to access details. Files under `playbooks` are diagnostic protocols — use `activate_playbook` to load them.".to_string(),
-        String::new(),
-    ];
-
-    let mut current_cat = String::new();
+    // Group slugs by category.
+    let mut cats: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
     for entry in &entries {
-        if entry.category != current_cat {
-            current_cat = entry.category.clone();
-            lines.push(format!("### {}", current_cat));
-        }
-        lines.push(format!("- {} (`{}`)", entry.title, entry.path));
+        let slug = entry.filename.trim_end_matches(".md").to_string();
+        cats.entry(entry.category.clone()).or_default().push(slug);
+    }
+
+    let mut lines = vec!["## Knowledge Base (use search_knowledge to find relevant files)".to_string()];
+    for (cat, slugs) in &cats {
+        lines.push(format!("{}: {}", cat, slugs.join(", ")));
     }
 
     Ok(lines.join("\n"))
@@ -757,10 +757,9 @@ type: system
         std::fs::write(kdir.join("devices/printer.md"), "# HP LaserJet\n\nDetails").unwrap();
 
         let toc = knowledge_toc(&kdir).unwrap();
-        assert!(toc.contains("## Knowledge Base"));
-        assert!(toc.contains("### devices"));
-        assert!(toc.contains("HP LaserJet"));
-        assert!(toc.contains("`devices/printer.md`"));
+        assert!(toc.contains("Knowledge Base"));
+        assert!(toc.contains("devices:"));
+        assert!(toc.contains("printer"));
     }
 
     #[test]
