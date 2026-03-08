@@ -115,13 +115,32 @@ function LinkedText({ text }: { text: string }) {
 }
 
 function InlineMarkdown({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  // Split on **bold**, [label](url), and `code` patterns
+  const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|`[^`]+`)/g);
   return (
     <>
       {parts.map((part, i) => {
         const bold = part.match(/^\*\*([^*]+)\*\*$/);
         if (bold) {
           return <strong key={i} className="font-semibold">{bold[1]}</strong>;
+        }
+        const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        if (link) {
+          return (
+            <a
+              key={i}
+              href={link[2]}
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-accent-blue/50 underline-offset-2 hover:text-accent-blue"
+            >
+              {link[1]}
+            </a>
+          );
+        }
+        const code = part.match(/^`([^`]+)`$/);
+        if (code) {
+          return <code key={i} className="px-1 py-0.5 rounded bg-bg-tertiary text-sm font-mono">{code[1]}</code>;
         }
         return <LinkedText key={i} text={part} />;
       })}
@@ -605,18 +624,18 @@ function UserQuestionCard({
             />
           )}
         </div>
-        <div className="px-5 pb-4">
+        <div className="flex gap-2.5 px-5 pb-4">
           <button
             onClick={handleSubmit}
             disabled={actionTaken || isProcessing || !canSubmit}
-            className="w-full py-2.5 rounded-lg text-base font-medium transition-all cursor-pointer bg-accent-blue text-white hover:bg-accent-blue/80 disabled:opacity-60"
+            className="flex-1 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer bg-accent-blue text-white hover:bg-accent-blue/80 disabled:opacity-60"
           >
             {actionTaken ? "Sent" : "Submit"}
           </button>
           <button
             onClick={onSkip}
             disabled={actionTaken || isProcessing}
-            className="w-full py-2 mt-2 rounded-lg border border-border-primary text-text-secondary hover:bg-bg-tertiary cursor-pointer disabled:opacity-60"
+            className="flex-1 py-2 rounded-lg text-sm border border-border-primary text-text-secondary hover:bg-bg-tertiary cursor-pointer disabled:opacity-60"
           >
             Skip For Now
           </button>
