@@ -213,11 +213,18 @@ export function Sidebar({ session }: SidebarProps) {
     }
   }, [setPastSessions]);
 
-  // Load sessions when sidebar opens
+  // Load sessions when sidebar opens, session changes, or periodically while open
   useEffect(() => {
     if (sidebarOpen) {
       loadSessions();
     }
+  }, [sidebarOpen, currentSessionId, loadSessions]);
+
+  // Refresh session list periodically while sidebar is open (picks up title changes)
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const timer = setInterval(loadSessions, 5000);
+    return () => clearInterval(timer);
   }, [sidebarOpen, loadSessions]);
 
   const handleSelectSession = useCallback(
@@ -337,11 +344,8 @@ export function Sidebar({ session }: SidebarProps) {
         <div className="border-t border-border-primary" />
       </div>
 
-      {/* Recents */}
+      {/* Session list */}
       <div className="flex-1 overflow-y-auto pt-2 pb-2">
-        <div className="px-4 py-1.5">
-          <span className="text-xs font-medium text-text-muted">Recents</span>
-        </div>
         {pastSessions.length === 0 ? (
           <div className="px-4 py-6 text-center">
             <p className="text-xs text-text-muted">
