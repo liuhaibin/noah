@@ -1090,12 +1090,12 @@ function formatActivityEntry(evt: DebugLogPayload): ActivityEntry | null {
   }
 }
 
-function ThinkingIndicator() {
+function ThinkingIndicator({ isPlaybook }: { isPlaybook: boolean }) {
   const [status, setStatus] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef(Date.now());
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(isPlaybook);
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1109,6 +1109,8 @@ function ThinkingIndicator() {
         setStatus("Thinking...");
         startRef.current = Date.now();
         setElapsed(0);
+      } else if (evt.event_type === "playbook_activated") {
+        setExpanded(true);
       }
       // Collect activity for the log
       const entry = formatActivityEntry(evt);
@@ -1414,7 +1416,7 @@ export function ChatPanel() {
                   />
                 ));
               })()}
-              {isProcessing && <ThinkingIndicator />}
+              {isProcessing && <ThinkingIndicator isPlaybook={messages.some(m => m.assistantUi && "progress" in m.assistantUi && m.assistantUi.progress)} />}
             </div>
             <div className="sticky bottom-0 pt-6 pb-4 bg-gradient-to-t from-bg-primary from-90% to-transparent">
               {inputCard}
