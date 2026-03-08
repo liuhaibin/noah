@@ -21,8 +21,7 @@ const URL_PATTERN = /((?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s)
 
 function normalizeSpaText(input: string): string {
   return input
-    .replace(/^\s*\*\*\s*$/gm, "")
-    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\\n/g, "\n")           // unescape literal \n sequences
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -117,7 +116,8 @@ function InlineMarkdown({ text }: { text: string }) {
 }
 
 function MarkdownSummary({ text }: { text: string }) {
-  const lines = text.split("\n");
+  // Unescape literal \n sequences that may come from JSON-serialized content.
+  const lines = text.replace(/\\n/g, "\n").split("\n");
   const blocks: React.ReactNode[] = [];
   let i = 0;
 
