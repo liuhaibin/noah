@@ -418,6 +418,7 @@ function ActionCard({
   progress,
   qrData,
   onDoIt,
+  onSendMessage,
 }: {
   situation: string;
   plan?: string;
@@ -429,6 +430,7 @@ function ActionCard({
   progress?: { step: number; total: number; label: string };
   qrData?: string;
   onDoIt: () => void;
+  onSendMessage?: (text: string) => void;
 }) {
   const prettySituation = normalizeSpaText(situation);
   const prettyPlan = plan ? normalizeSpaText(plan) : null;
@@ -495,6 +497,14 @@ function ActionCard({
           >
             {actionTaken ? "Sent" : prettyActionLabel}
           </button>
+          {!actionTaken && !isProcessing && onSendMessage && (
+            <button
+              onClick={() => onSendMessage("Show me the detailed instructions")}
+              className="w-full mt-2 text-sm text-text-muted hover:text-accent-blue transition-colors cursor-pointer"
+            >
+              Show me the instructions
+            </button>
+          )}
         </div>
       </div>
       <div className="text-[10px] mt-1 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity duration-150">
@@ -837,6 +847,7 @@ function renderFromUiPayload(
   onConfirm: (messageId: string) => void,
   onEvent: (eventType: "USER_ANSWER_QUESTION" | "USER_SKIP_OPTIONAL", payload?: string) => void,
   onSecureAnswer?: (secretName: string, value: string) => void,
+  onSendMessage?: (text: string) => void,
 ): React.ReactNode {
   const progress = "progress" in ui ? ui.progress : undefined;
 
@@ -854,6 +865,7 @@ function renderFromUiPayload(
           progress={progress}
           qrData={ui.qr_data}
           onDoIt={() => onConfirm(message.id)}
+          onSendMessage={onSendMessage}
         />
       );
     case "user_question":
@@ -902,6 +914,7 @@ function MessageDisplay({
   onConfirm,
   onEvent,
   onSecureAnswer,
+  onSendMessage,
 }: {
   message: Message;
   isProcessing: boolean;
@@ -910,6 +923,7 @@ function MessageDisplay({
   onConfirm: (messageId: string) => void;
   onEvent: (eventType: "USER_ANSWER_QUESTION" | "USER_SKIP_OPTIONAL", payload?: string) => void;
   onSecureAnswer?: (secretName: string, value: string) => void;
+  onSendMessage?: (text: string) => void;
 }) {
   // User confirmation pill
   if (message.role === "user" && message.actionConfirmation) {
@@ -935,6 +949,7 @@ function MessageDisplay({
       onConfirm,
       onEvent,
       onSecureAnswer,
+      onSendMessage,
     );
   } else {
     // Fall back to parsing text (backward compat for old sessions)
@@ -1453,6 +1468,7 @@ export function ChatPanel() {
                     onConfirm={sendConfirmation}
                     onEvent={handleEvent}
                     onSecureAnswer={handleSecureAnswer}
+                    onSendMessage={sendMessage}
                   />
                 ));
               })()}
