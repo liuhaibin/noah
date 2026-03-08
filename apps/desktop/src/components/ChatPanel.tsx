@@ -1051,12 +1051,52 @@ function humanizeToolCall(summary: string): string {
 interface DebugLogPayload {
   event_type: string;
   summary: string;
+  detail?: Record<string, unknown>;
 }
 
-function ThinkingIndicator() {
+interface ActivityEntry {
+  time: string;
+  text: string;
+  type: "command" | "result" | "thinking" | "error";
+}
+
+function formatActivityEntry(evt: DebugLogPayload): ActivityEntry | null {
+  const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  switch (evt.event_type) {
+    case "tool_call": {
+      const name = evt.detail?.name as string | undefined;
+      // Filter out ui_* protocol calls — these are LLM↔Noah internal
+      if (name?.startsWith("ui_")) return null;
+      const input = evt.detail?.input as Record<string, unknown> | undefined;
+      const cmd = input?.command as string | undefined;
+      return { time, text: cmd ? `$ ${cmd}` : `${name || "tool"}`, type: "command" };
+    }
+    case "tool_result": {
+      const name = evt.detail?.name as string | undefined;
+      if (name?.startsWith("ui_")) return null;
+      const preview = (evt.detail?.output_preview as string || "").trim();
+      if (!preview) return null;
+      // Truncate long output
+      const lines = preview.split("\n");
+      const display = lines.length > 6 ? [...lines.slice(0, 5), `... (${lines.length - 5} more lines)`].join("\n") : preview;
+      return { time, text: display, type: "result" };
+    }
+    case "llm_request":
+      return { time, text: "Thinking...", type: "thinking" };
+    case "error":
+      return { time, text: evt.summary, type: "error" };
+    default:
+      return null;
+  }
+}
+
+function ThinkingIndicator({ hasPlaybook }: { hasPlaybook: boolean }) {
   const [status, setStatus] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef(Date.now());
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [expanded, setExpanded] = useState(false);
+  const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const unlisten = listen<DebugLogPayload>("debug-log", (e) => {
@@ -1069,6 +1109,11 @@ function ThinkingIndicator() {
         setStatus("Thinking...");
         startRef.current = Date.now();
         setElapsed(0);
+      }
+      // Collect activity for the log
+      const entry = formatActivityEntry(evt);
+      if (entry) {
+        setActivity(prev => [...prev.slice(-50), entry]); // keep last 50
       }
     });
 
@@ -1083,6 +1128,13 @@ function ThinkingIndicator() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Auto-scroll the log
+  useEffect(() => {
+    if (expanded && logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [activity, expanded]);
 
   return (
     <div className="animate-fade-in py-1">
@@ -1100,7 +1152,33 @@ function ThinkingIndicator() {
             )}
           </span>
         )}
+        {hasPlaybook && activity.length > 0 && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="ml-auto text-xs text-text-muted hover:text-text-secondary cursor-pointer"
+          >
+            {expanded ? "Hide details" : "Show details"}
+          </button>
+        )}
       </div>
+      {expanded && activity.length > 0 && (
+        <div
+          ref={logRef}
+          className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-border-primary/50 bg-bg-secondary p-3 font-mono text-xs leading-relaxed"
+        >
+          {activity.map((entry, i) => (
+            <div key={i} className={`${
+              entry.type === "command" ? "text-accent-blue"
+              : entry.type === "error" ? "text-red-400"
+              : entry.type === "thinking" ? "text-text-muted italic"
+              : "text-text-secondary"
+            } ${entry.type === "result" ? "pl-4 whitespace-pre-wrap" : ""}`}>
+              <span className="text-text-muted/50 mr-2">{entry.time}</span>
+              {entry.text}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1336,7 +1414,7 @@ export function ChatPanel() {
                   />
                 ));
               })()}
-              {isProcessing && <ThinkingIndicator />}
+              {isProcessing && <ThinkingIndicator hasPlaybook={messages.some(m => m.assistantUi && "progress" in m.assistantUi && m.assistantUi.progress)} />}
             </div>
             <div className="sticky bottom-0 pt-6 pb-4 bg-gradient-to-t from-bg-primary from-90% to-transparent">
               {inputCard}
