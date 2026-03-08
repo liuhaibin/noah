@@ -8,8 +8,22 @@ import { parseResponse } from "../lib/parseResponse";
 import type { AssistantQuestion, AssistantUiPayload } from "../lib/tauri-commands";
 import * as commands from "../lib/tauri-commands";
 import { NoahIcon } from "./NoahIcon";
+import QRCode from "qrcode";
 
 const showToolCalls = import.meta.env.DEV;
+
+function QrCodeImage({ data }: { data: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    QRCode.toDataURL(data, { width: 200, margin: 2 }).then(setSrc).catch(() => setSrc(null));
+  }, [data]);
+  if (!src) return null;
+  return (
+    <div className="flex justify-center py-3">
+      <img src={src} alt="QR Code" className="rounded-lg" width={200} height={200} />
+    </div>
+  );
+}
 
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -383,6 +397,7 @@ function ActionCard({
   isProcessing,
   timestamp,
   progress,
+  qrData,
   onDoIt,
 }: {
   situation: string;
@@ -393,6 +408,7 @@ function ActionCard({
   isProcessing: boolean;
   timestamp: number;
   progress?: { step: number; total: number; label: string };
+  qrData?: string;
   onDoIt: () => void;
 }) {
   const prettySituation = normalizeSpaText(situation);
@@ -423,6 +439,7 @@ function ActionCard({
               <MarkdownSummary text={prettySituation} />
             </div>
           </div>
+          {qrData && <QrCodeImage data={qrData} />}
         </div>
 
         {/* Plan (only when present) */}
@@ -816,6 +833,7 @@ function renderFromUiPayload(
           isProcessing={isProcessing}
           timestamp={message.timestamp}
           progress={progress}
+          qrData={ui.qr_data}
           onDoIt={() => onConfirm(message.id)}
         />
       );

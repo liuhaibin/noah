@@ -49,6 +49,9 @@ pub fn ui_payload_from_tool_call(name: &str, input: &Value) -> Result<String> {
             if let Some(plan_text) = plan {
                 payload["plan"] = json!(plan_text);
             }
+            if let Some(qr) = input.get("qr_data").and_then(|v| v.as_str()) {
+                payload["qr_data"] = json!(qr);
+            }
             Ok(payload.to_string())
         }
         "ui_user_question" => {
@@ -179,6 +182,7 @@ impl Tool for UiSpaTool {
           "properties":{
             "situation_md":{"type":"string","description":"Situation or instruction text in Markdown format."},
             "plan_md":{"type":"string","description":"Plan text in Markdown format. Omit when using WAIT_FOR_USER with instructions only."},
+            "qr_data":{"type":"string","description":"Optional data string to render as a scannable QR code (e.g. a URL or auth token the user must scan with their phone)."},
             "action":{
               "type":"object",
               "properties":{

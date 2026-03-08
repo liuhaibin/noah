@@ -72,6 +72,8 @@ pub struct AssistantSpaUi {
     pub action: AssistantCardAction,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress: Option<PlaybookProgress>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub qr_data: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -186,6 +188,7 @@ fn parse_assistant_ui_json(text: &str) -> Option<AssistantUiPayload> {
                     _ => None,
                 })
                 .unwrap_or(AssistantActionType::RunStep);
+            let qr_data = v.get("qr_data").and_then(|v| v.as_str()).map(|s| s.to_string());
             Some(AssistantUiPayload::Spa(AssistantSpaUi {
                 kind: "spa".to_string(),
                 situation,
@@ -195,6 +198,7 @@ fn parse_assistant_ui_json(text: &str) -> Option<AssistantUiPayload> {
                     action_type,
                 },
                 progress,
+                qr_data,
             }))
         }
         "user_question" => {
@@ -300,6 +304,7 @@ pub fn parse_assistant_ui(text: &str) -> Option<AssistantUiPayload> {
             action_type: AssistantActionType::RunStep,
         },
         progress: None,
+        qr_data: None,
     }))
 }
 

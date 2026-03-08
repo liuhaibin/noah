@@ -98,6 +98,7 @@ export interface AssistantUiSpa {
   plan?: string;
   action: AssistantCardAction;
   progress?: PlaybookProgress;
+  qr_data?: string;
 }
 
 export interface AssistantUiUserQuestion {
