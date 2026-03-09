@@ -8,8 +8,12 @@ import type { SessionRecord } from "../lib/tauri-commands";
 function formatDate(iso: string, t: (key: string, params?: Record<string, string | number>) => string): string {
   const d = new Date(iso);
   const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  // Compare calendar dates in the user's local timezone (not raw ms difference,
+  // which misclassifies e.g. yesterday 11 PM as "today" when viewed at 10 AM).
+  const localDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((todayDate.getTime() - localDate.getTime()) / (1000 * 60 * 60 * 24));
 
   const time = d.toLocaleTimeString([], {
     hour: "2-digit",
