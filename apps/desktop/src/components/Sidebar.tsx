@@ -5,7 +5,11 @@ import { useLocale } from "../i18n";
 import * as commands from "../lib/tauri-commands";
 import type { SessionRecord } from "../lib/tauri-commands";
 
-function formatDate(iso: string, t: (key: string, params?: Record<string, string | number>) => string): string {
+// Map app locale to BCP 47 tag for Intl date/time formatting.
+const localeBcp47: Record<string, string> = { zh: "zh-CN", en: "en-US" };
+
+function formatDate(iso: string, t: (key: string, params?: Record<string, string | number>) => string, locale: string): string {
+  const bcp = localeBcp47[locale] || locale;
   const d = new Date(iso);
   const now = new Date();
 
@@ -15,7 +19,7 @@ function formatDate(iso: string, t: (key: string, params?: Record<string, string
   const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const diffDays = Math.round((todayDate.getTime() - localDate.getTime()) / (1000 * 60 * 60 * 24));
 
-  const time = d.toLocaleTimeString([], {
+  const time = d.toLocaleTimeString(bcp, {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -23,8 +27,8 @@ function formatDate(iso: string, t: (key: string, params?: Record<string, string
   if (diffDays === 0) return t("sidebar.today", { time });
   if (diffDays === 1) return t("sidebar.yesterday", { time });
   if (diffDays < 7)
-    return `${d.toLocaleDateString([], { weekday: "short" })}, ${time}`;
-  return d.toLocaleDateString([], {
+    return `${d.toLocaleDateString(bcp, { weekday: "short" })}, ${time}`;
+  return d.toLocaleDateString(bcp, {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -130,12 +134,14 @@ function SessionItem({
   onSelect,
   onContextMenu,
   t,
+  locale,
 }: {
   session: SessionRecord;
   isActive: boolean;
   onSelect: (sessionId: string) => void;
   onContextMenu: (e: React.MouseEvent, session: SessionRecord) => void;
   t: (key: string, params?: Record<string, string | number>) => string;
+  locale: string;
 }) {
   return (
     <div
@@ -155,7 +161,7 @@ function SessionItem({
           {session.title || t("sidebar.untitledSession")}
         </p>
         <p className="text-[10px] text-text-muted mt-0.5">
-          {formatDate(session.created_at, t)}
+          {formatDate(session.created_at, t, locale)}
           {session.resolved === true && (
             <span className="text-accent-green ml-1.5">{"\u2713"}</span>
           )}
@@ -260,7 +266,7 @@ export function Sidebar({ session }: SidebarProps) {
     [pastSessions, setPastSessions],
   );
 
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   const handleNewChat = useCallback(async () => {
     setActiveView("chat");
@@ -349,6 +355,7 @@ export function Sidebar({ session }: SidebarProps) {
                 onSelect={handleSelectSession}
                 onContextMenu={handleContextMenu}
                 t={t}
+                locale={locale}
               />
             ))}
           </div>
