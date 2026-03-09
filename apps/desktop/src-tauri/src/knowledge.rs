@@ -101,28 +101,33 @@ pub struct KnowledgeEntry {
     /// Description from frontmatter (playbooks only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Emoji icon from frontmatter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emoji: Option<String>,
 }
 
 /// Parsed frontmatter fields from a knowledge/playbook markdown file.
 struct Frontmatter {
     description: Option<String>,
     playbook_type: Option<String>,
+    emoji: Option<String>,
 }
 
 fn extract_frontmatter(content: &str) -> Frontmatter {
     let trimmed = content.trim_start();
     if !trimmed.starts_with("---") {
-        return Frontmatter { description: None, playbook_type: None };
+        return Frontmatter { description: None, playbook_type: None, emoji: None };
     }
 
     let after_first = &trimmed[3..];
     let Some(end) = after_first.find("\n---") else {
-        return Frontmatter { description: None, playbook_type: None };
+        return Frontmatter { description: None, playbook_type: None, emoji: None };
     };
     let yaml_block = &after_first[..end];
 
     let mut description = None;
     let mut playbook_type = None;
+    let mut emoji = None;
 
     for line in yaml_block.lines() {
         let line = line.trim();
@@ -136,10 +141,15 @@ fn extract_frontmatter(content: &str) -> Frontmatter {
             if !desc.is_empty() {
                 description = Some(desc.to_string());
             }
+        } else if let Some(value) = line.strip_prefix("emoji:") {
+            let e = value.trim();
+            if !e.is_empty() {
+                emoji = Some(e.to_string());
+            }
         }
     }
 
-    Frontmatter { description, playbook_type }
+    Frontmatter { description, playbook_type, emoji }
 }
 
 /// Extract the title from the first `# ` heading line, or derive from filename.
@@ -230,6 +240,7 @@ pub fn list_knowledge_tree(
                     title,
                     playbook_type,
                     description: fm.description,
+                    emoji: fm.emoji,
                 });
             }
         }
@@ -265,6 +276,7 @@ fn scan_subdir(entries: &mut Vec<KnowledgeEntry>, cat_name: &str, dir: &Path, fo
             title,
             playbook_type,
             description: fm.description,
+            emoji: fm.emoji,
         });
     }
 }

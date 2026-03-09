@@ -51,6 +51,8 @@ export interface KnowledgeEntry {
   path: string;
   title: string;
   playbook_type?: string | null;
+  description?: string | null;
+  emoji?: string | null;
 }
 
 // ── UI Protocol Types ──

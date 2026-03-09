@@ -147,7 +147,11 @@ function KnowledgeCard({
           {icon}
         </div>
         <p className="text-base text-text-primary font-medium line-clamp-2">{entry.title}</p>
-        <p className="text-xs text-text-muted font-mono mt-1 truncate">{entry.path}</p>
+        {entry.description ? (
+          <p className="text-xs text-text-muted mt-1 line-clamp-2">{entry.description}</p>
+        ) : (
+          <p className="text-xs text-text-muted font-mono mt-1 truncate">{entry.path}</p>
+        )}
       </button>
       <div className="flex justify-end mt-3 text-xs">
         {confirmDelete ? (
@@ -230,15 +234,33 @@ export function KnowledgeView() {
   );
 
   const visibleEntries = useMemo(() => {
+    // For playbook tabs, only show top-level entries:
+    // - flat playbooks: playbooks/X.md (path has exactly one slash)
+    // - folder playbooks: playbooks/X/playbook.md only (not sub-modules)
+    const isTopLevel = (entry: KnowledgeEntry) => {
+      const parts = entry.path.split("/");
+      // playbooks/name.md → 2 parts
+      if (parts.length === 2) return true;
+      // playbooks/name/playbook.md → 3 parts, filename is playbook.md
+      if (parts.length === 3 && entry.filename === "playbook.md") return true;
+      return false;
+    };
+
     if (activeTab === "builtin") {
       return entries.filter(
-        (entry) => entry.category === "playbooks" && (entry.playbook_type ?? "user") === "system",
+        (entry) =>
+          entry.category === "playbooks" &&
+          (entry.playbook_type ?? "system") === "system" &&
+          isTopLevel(entry),
       );
     }
 
     if (activeTab === "yours") {
       return entries.filter(
-        (entry) => entry.category === "playbooks" && (entry.playbook_type ?? "user") !== "system",
+        (entry) =>
+          entry.category === "playbooks" &&
+          (entry.playbook_type ?? "system") !== "system" &&
+          isTopLevel(entry),
       );
     }
 
@@ -322,11 +344,12 @@ export function KnowledgeView() {
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">
                 {visibleEntries.map((entry) => {
                   const icon =
-                    entry.category === "playbooks"
-                      ? (entry.playbook_type ?? "user") === "system"
+                    entry.emoji ??
+                    (entry.category === "playbooks"
+                      ? (entry.playbook_type ?? "system") === "system"
                         ? "🧭"
                         : "📘"
-                      : "🧠";
+                      : "🧠");
                   return (
                     <KnowledgeCard
                       key={entry.path}
