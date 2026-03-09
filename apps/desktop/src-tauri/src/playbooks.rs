@@ -315,6 +315,88 @@ impl PlaybookRegistry {
             }
         }
 
+        // Garbage-collect stale system playbooks: files in the user's playbooks
+        // dir that have `type: system` but are no longer in the bundled set.
+        // This handles renamed/removed playbooks across upgrades.
+        // Only runs when there are bundled playbooks (skip in tests with empty bundled dirs).
+        if !flat.is_empty() || !folders.is_empty() {
+            let bundled_flat_names: std::collections::HashSet<String> = flat
+                .iter()
+                .map(|(filename, _)| filename.clone())
+                .collect();
+            let bundled_folder_paths: std::collections::HashSet<String> = folders
+                .iter()
+                .map(|(rel_path, _)| rel_path.clone())
+                .collect();
+            // Also collect folder names to avoid removing entire folder playbooks.
+            let bundled_folder_names: std::collections::HashSet<String> = folders
+                .iter()
+                .filter_map(|(rel_path, _)| rel_path.split('/').next().map(String::from))
+                .collect();
+
+            // Check flat .md files.
+            if let Ok(entries) = std::fs::read_dir(&playbooks_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() && path.extension().is_some_and(|ext| ext == "md") {
+                        let filename = entry.file_name().to_string_lossy().to_string();
+                        if bundled_flat_names.contains(&filename) {
+                            continue; // Still bundled, keep it.
+                        }
+                        // Check if it's a stale system playbook.
+                        if let Ok(content) = std::fs::read_to_string(&path) {
+                            if let Some(meta) = parse_frontmatter(&content) {
+                                if meta.playbook_type == "system" {
+                                    let _ = std::fs::remove_file(&path);
+                                }
+                            }
+                        }
+                    } else if path.is_dir() {
+                        let dir_name = entry.file_name().to_string_lossy().to_string();
+                        if bundled_folder_names.contains(&dir_name) {
+                            // Folder exists in bundled set; check individual files inside.
+                            if let Ok(sub_entries) = std::fs::read_dir(&path) {
+                                for sub_entry in sub_entries.flatten() {
+                                    let sub_path = sub_entry.path();
+                                    if sub_path.is_file() && sub_path.extension().is_some_and(|ext| ext == "md") {
+                                        let rel = format!("{}/{}", dir_name, sub_entry.file_name().to_string_lossy());
+                                        if bundled_folder_paths.contains(&rel) {
+                                            continue;
+                                        }
+                                        if let Ok(content) = std::fs::read_to_string(&sub_path) {
+                                            if let Some(meta) = parse_frontmatter(&content) {
+                                                if meta.playbook_type == "system" {
+                                                    let _ = std::fs::remove_file(&sub_path);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // Entire folder not in bundled set; remove if ALL files are system type.
+                            let all_system = std::fs::read_dir(&path)
+                                .map(|entries| {
+                                    entries.flatten().all(|e| {
+                                        let p = e.path();
+                                        if !p.is_file() { return true; }
+                                        std::fs::read_to_string(&p)
+                                            .ok()
+                                            .and_then(|c| parse_frontmatter(&c))
+                                            .map(|m| m.playbook_type == "system")
+                                            .unwrap_or(false)
+                                    })
+                                })
+                                .unwrap_or(false);
+                            if all_system {
+                                let _ = std::fs::remove_dir_all(&path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Scan directory for all .md files and parse frontmatter.
         // Only include playbooks matching current platform or "all".
         // Scans both top-level files and playbook.md inside subdirectories.
@@ -748,23 +830,49 @@ mod tests {
     #[test]
     fn test_read_playbook_dual_track_concatenation() {
         // Both a system and a user version of the same playbook → both returned, annotated.
+        // Uses app-doctor (a real bundled playbook) so GC doesn't remove the system version.
         let tmp = tempfile::tempdir().unwrap();
         let playbooks_dir = tmp.path().join("playbooks");
         std::fs::create_dir_all(&playbooks_dir).unwrap();
 
-        let system_pb = "---\nname: wifi-fix\ndescription: System wifi fix\nplatform: all\nlast_reviewed: 2026-01-01\nauthor: noah-team\ntype: system\n---\n\n# System steps";
-        let user_pb   = "---\nname: wifi-fix\ndescription: My notes\nplatform: all\ntype: user\n---\n\n# My extra steps";
-        std::fs::write(playbooks_dir.join("wifi-fix.md"), system_pb).unwrap();
-        std::fs::write(playbooks_dir.join("wifi-fix-user.md"), user_pb).unwrap();
+        // Write a user version alongside the bundled system version.
+        // Use setup-ssh-key which is platform: all, so it won't be filtered.
+        let user_pb = "---\nname: setup-ssh-key\ndescription: My notes\nplatform: all\ntype: user\n---\n\n# My extra steps";
+        std::fs::write(playbooks_dir.join("setup-ssh-key-user.md"), user_pb).unwrap();
 
         let registry = PlaybookRegistry::init_for_platform(tmp.path(), &bundled_dir(),"all").unwrap();
-        let content = registry.read_playbook("wifi-fix").unwrap();
+        let content = registry.read_playbook("setup-ssh-key").unwrap();
 
-        assert!(content.contains("System steps"), "System content missing");
+        // System version comes from bundled playbooks, user version from our test file.
+        assert!(content.contains("origin: system"), "System annotation missing");
         assert!(content.contains("My extra steps"), "User content missing");
-        assert!(content.contains("origin: system"));
-        assert!(content.contains("origin: user"));
-        assert!(content.contains("2026-01-01"), "Date annotation missing");
+        assert!(content.contains("origin: user"), "User annotation missing");
+    }
+
+    #[test]
+    fn test_gc_removes_stale_system_playbooks() {
+        let tmp = tempfile::tempdir().unwrap();
+        let playbooks_dir = tmp.path().join("playbooks");
+        std::fs::create_dir_all(&playbooks_dir).unwrap();
+
+        // Pre-populate with a stale system playbook that's no longer bundled.
+        let stale = "---\nname: old-removed-playbook\ndescription: Was bundled once\nplatform: all\nlast_reviewed: 2025-01-01\nauthor: noah-team\ntype: system\n---\n\n# Old stuff";
+        std::fs::write(playbooks_dir.join("old-removed-playbook.md"), stale).unwrap();
+
+        // Also a user-created playbook that should survive GC.
+        let user = "---\nname: my-custom\ndescription: My stuff\nplatform: all\ntype: user\n---\n\n# My custom playbook";
+        std::fs::write(playbooks_dir.join("my-custom.md"), user).unwrap();
+
+        // Also a file with no frontmatter (user-generated, e.g. by write_knowledge).
+        let no_fm = "# Ad-hoc notes\n\nSome troubleshooting notes.";
+        std::fs::write(playbooks_dir.join("adhoc-notes.md"), no_fm).unwrap();
+
+        // Init with real bundled playbooks — GC should remove the stale system one.
+        let _registry = PlaybookRegistry::init_for_platform(tmp.path(), &bundled_dir(), "macos").unwrap();
+
+        assert!(!playbooks_dir.join("old-removed-playbook.md").exists(), "Stale system playbook should be removed");
+        assert!(playbooks_dir.join("my-custom.md").exists(), "User playbook should survive GC");
+        assert!(playbooks_dir.join("adhoc-notes.md").exists(), "No-frontmatter file should survive GC");
     }
 
     #[test]
