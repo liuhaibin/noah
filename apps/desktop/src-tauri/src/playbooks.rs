@@ -476,7 +476,7 @@ impl Tool for ActivatePlaybookTool {
     }
 
     fn description(&self) -> &str {
-        "Load a playbook by name. Returns the full step-by-step protocol. Use 'folder/module' to load a sub-module (e.g. 'setup-nanoclaw/add-telegram')."
+        "Load a playbook by name. Returns the full step-by-step protocol. Use 'folder/module' to load a sub-module (e.g. 'setup-openclaw/add-telegram')."
     }
 
     fn input_schema(&self) -> Value {
@@ -485,7 +485,7 @@ impl Tool for ActivatePlaybookTool {
             "properties": {
                 "name": {
                     "type": "string",
-                    "description": "The playbook name (e.g. 'network-diagnostics') or path for sub-modules (e.g. 'setup-nanoclaw/add-telegram')"
+                    "description": "The playbook name (e.g. 'network-diagnostics') or path for sub-modules (e.g. 'setup-openclaw/add-telegram')"
                 }
             },
             "required": ["name"]

@@ -13,8 +13,9 @@ NanoClaw is a WhatsApp AI assistant powered by Claude. This playbook guides
 the user through installing, authenticating, and starting the service.
 
 ## When to activate
-User wants to install NanoClaw, set up a WhatsApp AI bot, configure an AI
-assistant on WhatsApp, or mentions "nanoclaw" or "openclaw".
+User wants to install NanoClaw specifically (mentions "nanoclaw" by name).
+If the user says "openclaw", use `setup-openclaw` instead — OpenClaw is
+the successor product with broader channel support and a built-in gateway.
 
 ## Step 1: Check Environment
 
