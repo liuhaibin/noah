@@ -149,6 +149,8 @@ After the core setup, the user can add optional features:
 - **setup-openclaw/config-reference** — Comprehensive config field reference
   (load this when you need to look up specific config fields)
 - **setup-openclaw/troubleshooting** — Diagnostic commands and common fixes
+- **setup-openclaw/uninstall** — Completely uninstall OpenClaw (stop services,
+  delete config, remove CLI and desktop app)
 
 When setup is complete, ask the user if they'd like to configure any
 of these optional modules.
