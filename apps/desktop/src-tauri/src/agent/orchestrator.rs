@@ -212,9 +212,50 @@ impl Orchestrator {
         app_handle: &tauri::AppHandle<R>,
         db: &tokio::sync::Mutex<rusqlite::Connection>,
     ) -> Result<String> {
-        // Verify session exists.
+        // Verify session exists, or restore it from the database.
         if !self.sessions.contains_key(session_id) {
-            anyhow::bail!("Session not found: {}", session_id);
+            // Try to restore the session from the database.
+            let conn = db.lock().await;
+
+            // Get session metadata
+            let session_record = journal::get_session(&conn, session_id)
+                .context("Failed to load session metadata from database")?;
+
+            if session_record.is_none() {
+                drop(conn);
+                anyhow::bail!("Session not found: {}", session_id);
+            }
+
+            let session_record = session_record.unwrap();
+
+            // Load messages
+            let messages = journal::get_messages(&conn, session_id)
+                .context("Failed to load session messages from database")?;
+            drop(conn);
+
+            // Restore the session to memory.
+            let restored_messages: Vec<Message> = messages
+                .iter()
+                .map(|record| Message {
+                    role: record.role.clone(),
+                    content: MessageContent::Text(record.content.clone()),
+                })
+                .collect();
+
+            // Parse created_at timestamp
+            let created_at = chrono::DateTime::parse_from_rfc3339(&session_record.created_at)
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::Utc::now());
+
+            let session = Session {
+                id: session_id.to_string(),
+                messages: restored_messages,
+                created_at,
+                playbook: None,
+                secrets: HashMap::new(),
+                locale: None,
+            };
+            self.sessions.insert(session_id.to_string(), session);
         }
 
         // Add the user message to history.

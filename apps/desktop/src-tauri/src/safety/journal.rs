@@ -652,6 +652,43 @@ pub fn list_sessions(conn: &Connection) -> Result<Vec<SessionRecord>> {
     Ok(records)
 }
 
+/// Get a single session by ID.
+pub fn get_session(conn: &Connection, session_id: &str) -> Result<Option<SessionRecord>> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT s.id, s.created_at, s.ended_at, s.title, s.message_count,
+                    COALESCE(j.change_count, 0), s.resolved
+             FROM sessions s
+             LEFT JOIN (
+                 SELECT session_id, COUNT(*) as change_count
+                 FROM journal
+                 GROUP BY session_id
+             ) j ON j.session_id = s.id
+             WHERE s.id = ?1",
+        )
+        .context("Failed to prepare get_session query")?;
+
+    let result = stmt
+        .query_row(rusqlite::params![session_id], |row| {
+            let resolved_int: Option<i32> = row.get(6)?;
+            Ok(SessionRecord {
+                id: row.get(0)?,
+                created_at: row.get(1)?,
+                ended_at: row.get(2)?,
+                title: row.get(3)?,
+                message_count: row.get(4)?,
+                change_count: row.get(5)?,
+                resolved: resolved_int.map(|v| v != 0),
+            })
+        });
+
+    match result {
+        Ok(record) => Ok(Some(record)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(anyhow::Error::from(e).context("Failed to get session")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
