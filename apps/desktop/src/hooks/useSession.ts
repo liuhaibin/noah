@@ -1,13 +1,14 @@
 import { useEffect, useCallback } from "react";
-import { useSessionStore } from "../stores/sessionStore";
+import { useSessionStore, type SessionMode } from "../stores/sessionStore";
 import { useChatStore } from "../stores/chatStore";
 import { currentLocale, t as i18nT } from "../i18n";
 import * as commands from "../lib/tauri-commands";
 
+// Re-export from store so consumers can use either import path.
+export type { SessionMode } from "../stores/sessionStore";
+
 // Module-level guard: shared across all useSession() instances
 let creating = false;
-
-export type SessionMode = "default" | "learn";
 
 interface UseSessionReturn {
   sessionId: string | null;
@@ -23,6 +24,7 @@ export function useSession(): UseSessionReturn {
     sessionId,
     isActive,
     setSession,
+    setSessionMode,
     endSession: endSessionState,
     prependSession,
   } = useSessionStore();
@@ -51,6 +53,7 @@ export function useSession(): UseSessionReturn {
       // Awaited to avoid race with the user's first message.
       if (mode === "learn") {
         await commands.setSessionMode(session.id, "learn");
+        setSessionMode("learn");
       }
 
       const greeting = mode === "learn"
@@ -64,7 +67,7 @@ export function useSession(): UseSessionReturn {
         content: `Failed to start session: ${err instanceof Error ? err.message : String(err)}`,
       });
     }
-  }, [setSession, prependSession, addMessage, clearMessages]);
+  }, [setSession, setSessionMode, prependSession, addMessage, clearMessages]);
 
   const startNewProblem = useCallback(async (mode?: SessionMode) => {
     if (sessionId) {

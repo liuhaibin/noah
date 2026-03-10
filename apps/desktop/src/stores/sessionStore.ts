@@ -6,10 +6,13 @@ import type {
 } from "../lib/tauri-commands";
 
 type ActiveView = "chat" | "knowledge" | "diagnostics";
+export type SessionMode = "default" | "learn";
 
 interface SessionState {
   sessionId: string | null;
   isActive: boolean;
+  /** Session mode: "default" for normal chat, "learn" for knowledge-creation flow. */
+  sessionMode: SessionMode;
   /** Session ID currently being processed by the LLM (null if idle). */
   processingSessionId: string | null;
   changes: ChangeEntry[];
@@ -23,6 +26,7 @@ interface SessionState {
   pastSessions: SessionRecord[];
 
   setSession: (id: string) => void;
+  setSessionMode: (mode: SessionMode) => void;
   endSession: () => void;
   setProcessingSession: (id: string | null) => void;
   addChange: (change: ChangeEntry) => void;
@@ -56,6 +60,7 @@ const allPanelsClosed = {
 export const useSessionStore = create<SessionState>((set) => ({
   sessionId: null,
   isActive: false,
+  sessionMode: "default",
   processingSessionId: null,
   changes: [],
   pendingApproval: null,
@@ -71,13 +76,17 @@ export const useSessionStore = create<SessionState>((set) => ({
     set({
       sessionId: id,
       isActive: true,
+      sessionMode: "default",
       changes: [],
       pendingApproval: null,
     }),
 
+  setSessionMode: (mode) => set({ sessionMode: mode }),
+
   endSession: () =>
     set({
       isActive: false,
+      sessionMode: "default",
       pendingApproval: null,
     }),
 

@@ -1266,18 +1266,20 @@ function SuggestionCards({
   );
 }
 
-function WelcomeHero({ hasContextual }: { hasContextual: boolean }) {
+function WelcomeHero({ hasContextual, learnMode }: { hasContextual: boolean; learnMode?: boolean }) {
   const { t } = useLocale();
   return (
     <div className="flex flex-col items-center text-text-muted">
       <NoahIcon className="w-14 h-14 rounded-2xl mb-4" alt="Noah" />
       <p className="text-2xl font-semibold text-text-primary mb-1">
-        {t("welcome.greeting")}
+        {learnMode ? t("welcome.learnGreeting") : t("welcome.greeting")}
       </p>
       <p className="text-base text-text-secondary">
-        {hasContextual
-          ? t("welcome.subtitleContextual")
-          : t("welcome.subtitleDefault")}
+        {learnMode
+          ? t("welcome.learnSubtitle")
+          : hasContextual
+            ? t("welcome.subtitleContextual")
+            : t("welcome.subtitleDefault")}
       </p>
     </div>
   );
@@ -1348,6 +1350,7 @@ export function ChatPanel() {
   );
 
   const showWelcome = messages.length === 0 || (messages.length === 1 && messages[0].role === "system");
+  const sessionMode = useSessionStore((s) => s.sessionMode);
 
   const inputCard = (
     <div className="max-w-4xl w-full mx-auto">
@@ -1402,8 +1405,8 @@ export function ChatPanel() {
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {showWelcome ? (
           <div className="flex flex-col items-center justify-center h-full gap-8">
-            <WelcomeHero hasContextual={false} />
-            {!input.trim() && (
+            <WelcomeHero hasContextual={false} learnMode={sessionMode === "learn"} />
+            {sessionMode !== "learn" && !input.trim() && (
               <SuggestionCards
                 onSelect={(text) => sendMessage(text)}
                 disabled={isProcessing}
