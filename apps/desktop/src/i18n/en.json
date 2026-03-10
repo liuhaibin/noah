@@ -1,7 +1,7 @@
 {
   "chat": {
     "placeholder": "Tell Noah what you need help with...",
-    "learnPlaceholder": "Paste a URL or text here...",
+    "learnPlaceholder": "Paste a link to a guide, or type what you'd like me to know...",
     "situation": "Situation",
     "plan": "Plan",
     "sent": "Sent",
@@ -31,7 +31,7 @@
     "subtitleContextual": "What's going on? Or check in on something I know about.",
     "subtitleDefault": "Your computer helper. What's going on?",
     "learnGreeting": "What would you like me to learn?",
-    "learnSubtitle": "Paste a URL, some text, or describe what you'd like me to remember."
+    "learnSubtitle": "Share a link to a tutorial or guide, or just tell me in your own words."
   },
   "suggestions": {
     "internetSlow": "My internet is slow",
