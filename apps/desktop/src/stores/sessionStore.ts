@@ -15,6 +15,8 @@ interface SessionState {
   sessionMode: SessionMode;
   /** Session ID currently being processed by the LLM (null if idle). */
   processingSessionId: string | null;
+  /** When true, RUN_STEP actions auto-confirm without user clicking. */
+  autoConfirm: boolean;
   changes: ChangeEntry[];
   pendingApproval: ApprovalRequest | null;
   changeLogOpen: boolean;
@@ -29,6 +31,7 @@ interface SessionState {
   setSessionMode: (mode: SessionMode) => void;
   endSession: () => void;
   setProcessingSession: (id: string | null) => void;
+  setAutoConfirm: (on: boolean) => void;
   addChange: (change: ChangeEntry) => void;
   markChangeUndone: (changeId: string) => void;
   setChanges: (changes: ChangeEntry[]) => void;
@@ -62,6 +65,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   isActive: false,
   sessionMode: "default",
   processingSessionId: null,
+  autoConfirm: false,
   changes: [],
   pendingApproval: null,
   changeLogOpen: false,
@@ -77,6 +81,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       sessionId: id,
       isActive: true,
       sessionMode: "default",
+      autoConfirm: false,
       changes: [],
       pendingApproval: null,
     }),
@@ -87,10 +92,13 @@ export const useSessionStore = create<SessionState>((set) => ({
     set({
       isActive: false,
       sessionMode: "default",
+      autoConfirm: false,
       pendingApproval: null,
     }),
 
   setProcessingSession: (id) => set({ processingSessionId: id }),
+
+  setAutoConfirm: (on) => set({ autoConfirm: on }),
 
   addChange: (change) =>
     set((state) => ({

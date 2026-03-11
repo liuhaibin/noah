@@ -1,8 +1,8 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useChatStore } from "../stores/chatStore";
 import { useSessionStore } from "../stores/sessionStore";
 import * as commands from "../lib/tauri-commands";
-import type { UserEventType } from "../lib/tauri-commands";
+import type { UserEventType, AssistantUiPayload } from "../lib/tauri-commands";
 
 interface UseAgentReturn {
   sendMessage: (text: string) => Promise<void>;
@@ -18,6 +18,15 @@ function cleanError(err: unknown): string {
   return raw.replace(/^Agent error:\s*/i, "");
 }
 
+/** Check if a response should be auto-confirmed (RUN_STEP with autoConfirm on). */
+function shouldAutoConfirm(ui: AssistantUiPayload | undefined): boolean {
+  return (
+    useSessionStore.getState().autoConfirm &&
+    ui?.kind === "spa" &&
+    ui.action.type === "RUN_STEP"
+  );
+}
+
 export function useAgent(): UseAgentReturn {
   const addMessage = useChatStore((s) => s.addMessage);
   const updateMessage = useChatStore((s) => s.updateMessage);
@@ -27,6 +36,10 @@ export function useAgent(): UseAgentReturn {
   const setProcessingSession = useSessionStore((s) => s.setProcessingSession);
   const setChanges = useSessionStore((s) => s.setChanges);
   const changes = useSessionStore((s) => s.changes);
+
+  // Ref to break circular dependency: sendMessage needs to call doAutoConfirm
+  // which calls sendConfirmation-like logic.
+  const confirmRef = useRef<(messageId: string, actionLabel?: string) => Promise<void>>(undefined);
 
   // Only show processing indicator when the current session matches the processing one.
   const isProcessing = processingSessionId !== null && processingSessionId === sessionId;
@@ -74,15 +87,25 @@ export function useAgent(): UseAgentReturn {
           assistantUi: result.assistant_ui,
         });
         await syncChanges(prevChangeIds);
+
+        // Auto-confirm RUN_STEP when "Always continue" is active.
+        if (shouldAutoConfirm(result.assistant_ui) && result.assistant_ui?.kind === "spa" && confirmRef.current) {
+          const msgs = useChatStore.getState().messages;
+          const lastMsg = msgs[msgs.length - 1];
+          if (lastMsg?.role === "assistant") {
+            // Don't clear processing — confirmRef continues the chain.
+            confirmRef.current(lastMsg.id, (result.assistant_ui as import("../lib/tauri-commands").AssistantUiSpa).action.label);
+            return;
+          }
+        }
       } catch (err) {
         console.error("Agent communication error:", err);
         addMessage({
           role: "system",
           content: cleanError(err),
         });
-      } finally {
-        setProcessingSession(null);
       }
+      setProcessingSession(null);
     },
     [sessionId, addMessage, setProcessingSession, changes, syncChanges],
   );
@@ -113,18 +136,30 @@ export function useAgent(): UseAgentReturn {
           assistantUi: result.assistant_ui,
         });
         await syncChanges(prevChangeIds);
+
+        // Chain auto-confirm for consecutive RUN_STEP actions.
+        if (shouldAutoConfirm(result.assistant_ui) && result.assistant_ui?.kind === "spa" && confirmRef.current) {
+          const msgs = useChatStore.getState().messages;
+          const lastMsg = msgs[msgs.length - 1];
+          if (lastMsg?.role === "assistant") {
+            confirmRef.current(lastMsg.id, (result.assistant_ui as import("../lib/tauri-commands").AssistantUiSpa).action.label);
+            return;
+          }
+        }
       } catch (err) {
         console.error("Agent communication error:", err);
         addMessage({
           role: "system",
           content: cleanError(err),
         });
-      } finally {
-        setProcessingSession(null);
       }
+      setProcessingSession(null);
     },
     [sessionId, addMessage, markActionTaken, setProcessingSession, changes, syncChanges],
   );
+
+  // Wire the ref so sendMessage/sendConfirmation can chain auto-confirms.
+  confirmRef.current = sendConfirmation;
 
   const sendEvent = useCallback(
     async (eventType: UserEventType, payload?: string) => {

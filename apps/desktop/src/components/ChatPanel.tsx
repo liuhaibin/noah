@@ -425,6 +425,7 @@ function ActionCard({
   progress,
   qrData,
   onDoIt,
+  onAlwaysContinue,
   onSendMessage,
 }: {
   situation: string;
@@ -437,6 +438,7 @@ function ActionCard({
   progress?: { step: number; total: number; label: string };
   qrData?: string;
   onDoIt: () => void;
+  onAlwaysContinue?: () => void;
   onSendMessage?: (text: string) => void;
 }) {
   const { t } = useLocale();
@@ -505,13 +507,28 @@ function ActionCard({
           >
             {actionTaken ? t("chat.sent") : prettyActionLabel}
           </button>
-          {!actionTaken && !isProcessing && onSendMessage && (
-            <button
-              onClick={() => onSendMessage(t("chat.showInstructions"))}
-              className="w-full mt-2 text-sm text-text-muted hover:text-accent-blue transition-colors cursor-pointer"
-            >
-              {t("chat.showInstructions")}
-            </button>
+          {!actionTaken && !isProcessing && (
+            <div className="flex items-center justify-center gap-3 mt-2">
+              {onSendMessage && (
+                <button
+                  onClick={() => onSendMessage(t("chat.showInstructions"))}
+                  className="text-sm text-text-muted hover:text-accent-blue transition-colors cursor-pointer"
+                >
+                  {t("chat.showInstructions")}
+                </button>
+              )}
+              {onAlwaysContinue && !isWaitForUser && (
+                <>
+                  {onSendMessage && <span className="text-text-muted/40">·</span>}
+                  <button
+                    onClick={onAlwaysContinue}
+                    className="text-sm text-text-muted hover:text-accent-blue transition-colors cursor-pointer"
+                  >
+                    {t("chat.alwaysContinue")}
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -845,6 +862,7 @@ function renderFromUiPayload(
   onEvent: (eventType: "USER_ANSWER_QUESTION", payload?: string) => void,
   onSecureAnswer?: (secretName: string, value: string) => void,
   onSendMessage?: (text: string) => void,
+  onAlwaysContinue?: () => void,
 ): React.ReactNode {
   const progress = "progress" in ui ? ui.progress : undefined;
 
@@ -862,6 +880,7 @@ function renderFromUiPayload(
           progress={progress}
           qrData={ui.qr_data}
           onDoIt={() => onConfirm(message.id, ui.action.label)}
+          onAlwaysContinue={onAlwaysContinue}
           onSendMessage={onSendMessage}
         />
       );
@@ -913,6 +932,7 @@ function MessageDisplay({
   onEvent,
   onSecureAnswer,
   onSendMessage,
+  onAlwaysContinue,
 }: {
   message: Message;
   isProcessing: boolean;
@@ -922,6 +942,7 @@ function MessageDisplay({
   onEvent: (eventType: "USER_ANSWER_QUESTION", payload?: string) => void;
   onSecureAnswer?: (secretName: string, value: string) => void;
   onSendMessage?: (text: string) => void;
+  onAlwaysContinue?: () => void;
 }) {
   // Non-assistant messages use the regular bubble
   if (message.role !== "assistant") {
@@ -943,6 +964,7 @@ function MessageDisplay({
       onEvent,
       onSecureAnswer,
       onSendMessage,
+      onAlwaysContinue,
     );
   } else {
     // Fall back to parsing text (backward compat for old sessions)
@@ -1313,6 +1335,8 @@ function WelcomeHero({ hasContextual, learnMode }: { hasContextual: boolean; lea
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
   const sessionId = useSessionStore((s) => s.sessionId);
+  const autoConfirm = useSessionStore((s) => s.autoConfirm);
+  const setAutoConfirm = useSessionStore((s) => s.setAutoConfirm);
   const { sendMessage, sendConfirmation, sendEvent, cancelProcessing, isProcessing } =
     useAgent();
 
@@ -1464,6 +1488,13 @@ export function ChatPanel() {
                     onEvent={handleEvent}
                     onSecureAnswer={handleSecureAnswer}
                     onSendMessage={(text) => { setInput(text); setTimeout(() => textareaRef.current?.focus(), 0); }}
+                    onAlwaysContinue={!autoConfirm ? () => {
+                      setAutoConfirm(true);
+                      // Also confirm this action immediately
+                      if (!msg.actionTaken && msg.assistantUi?.kind === "spa") {
+                        sendConfirmation(msg.id, msg.assistantUi.action.label);
+                      }
+                    } : undefined}
                   />
                 ));
               })()}
@@ -1473,6 +1504,20 @@ export function ChatPanel() {
               )}
             </div>
             <div className="sticky bottom-0 pt-6 pb-4 bg-gradient-to-t from-bg-primary from-90% to-transparent">
+              {autoConfirm && (
+                <div className="flex items-center justify-center mb-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs text-accent-blue bg-accent-blue/10 rounded-full px-3 py-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
+                    {t("chat.autoConfirmActive")}
+                    <button
+                      onClick={() => setAutoConfirm(false)}
+                      className="ml-1 text-accent-blue/60 hover:text-accent-blue cursor-pointer"
+                    >
+                      {t("chat.stop")}
+                    </button>
+                  </span>
+                </div>
+              )}
               {inputCard}
             </div>
             <div ref={messagesEndRef} />

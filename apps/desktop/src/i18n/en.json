@@ -24,7 +24,10 @@
     "diagnosticChecks": "Ran {count} diagnostic check{s}",
     "plusDiagnostics": "+ {count} diagnostic check{s}",
     "followUp": "Follow up on a previous issue",
-    "checkOn": "Check on: {title}"
+    "checkOn": "Check on: {title}",
+    "alwaysContinue": "Always continue",
+    "autoConfirmActive": "Auto-continuing actions",
+    "stop": "Stop"
   },
   "welcome": {
     "greeting": "Hey, I'm Noah",
