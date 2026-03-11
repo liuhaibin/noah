@@ -10,6 +10,8 @@ export function ActionApproval() {
   const { t } = useLocale();
   const pendingApproval = useSessionStore((s) => s.pendingApproval);
   const setPendingApproval = useSessionStore((s) => s.setPendingApproval);
+  const autoConfirm = useSessionStore((s) => s.autoConfirm);
+  const setAutoConfirm = useSessionStore((s) => s.setAutoConfirm);
   const addMessage = useChatStore((s) => s.addMessage);
 
   // Listen for approval requests from the Tauri backend
@@ -26,8 +28,11 @@ export function ActionApproval() {
     };
   }, [setPendingApproval]);
 
-  const handleApprove = useCallback(async () => {
+  const handleApprove = useCallback(async (dontAskAgain?: boolean) => {
     if (!pendingApproval) return;
+    if (dontAskAgain) {
+      setAutoConfirm(true);
+    }
     try {
       await commands.approveAction(pendingApproval.approval_id);
       addMessage({
@@ -39,7 +44,7 @@ export function ActionApproval() {
     } finally {
       setPendingApproval(null);
     }
-  }, [pendingApproval, setPendingApproval, addMessage]);
+  }, [pendingApproval, setPendingApproval, setAutoConfirm, addMessage]);
 
   const handleDeny = useCallback(async () => {
     if (!pendingApproval) return;
@@ -56,6 +61,13 @@ export function ActionApproval() {
     }
   }, [pendingApproval, setPendingApproval, addMessage]);
 
+  // Auto-approve when "don't ask again" is active.
+  useEffect(() => {
+    if (pendingApproval && autoConfirm) {
+      handleApprove();
+    }
+  }, [pendingApproval, autoConfirm, handleApprove]);
+
   // Handle Escape key to deny
   useEffect(() => {
     if (!pendingApproval) return;
@@ -66,9 +78,11 @@ export function ActionApproval() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [pendingApproval, handleDeny]);
 
-  if (!pendingApproval) return null;
+  // Don't show modal when auto-approving
+  if (!pendingApproval || autoConfirm) return null;
 
   const reason = pendingApproval.reason || t("approval.defaultReason");
+  const toolDesc = pendingApproval.description;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-overlay backdrop-blur-sm animate-fade-in">
@@ -104,21 +118,34 @@ export function ActionApproval() {
           <p className="text-sm text-text-primary leading-relaxed">
             {reason}
           </p>
+          {toolDesc && (
+            <p className="text-xs text-text-muted mt-2 leading-relaxed">
+              {toolDesc}
+            </p>
+          )}
         </div>
 
         {/* Actions */}
-        <div className="px-6 py-4 flex items-center justify-end gap-3 border-t border-border-primary">
+        <div className="px-6 py-4 border-t border-border-primary">
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={handleDeny}
+              className="px-5 py-2 rounded-lg text-sm text-text-secondary bg-bg-tertiary hover:bg-bg-tertiary/80 transition-colors cursor-pointer"
+            >
+              {t("approval.deny")}
+            </button>
+            <button
+              onClick={() => handleApprove()}
+              className="px-5 py-2 rounded-lg text-sm text-white bg-accent-green hover:bg-accent-green/80 transition-colors cursor-pointer"
+            >
+              {t("approval.approve")}
+            </button>
+          </div>
           <button
-            onClick={handleDeny}
-            className="px-5 py-2 rounded-lg text-sm text-text-secondary bg-bg-tertiary hover:bg-bg-tertiary/80 transition-colors cursor-pointer"
+            onClick={() => handleApprove(true)}
+            className="w-full mt-2 text-xs text-text-muted hover:text-accent-green transition-colors cursor-pointer text-center"
           >
-            {t("approval.deny")}
-          </button>
-          <button
-            onClick={handleApprove}
-            className="px-5 py-2 rounded-lg text-sm text-white bg-accent-green hover:bg-accent-green/80 transition-colors cursor-pointer"
-          >
-            {t("approval.approve")}
+            {t("approval.approveAll")}
           </button>
         </div>
       </div>

@@ -15,7 +15,7 @@ interface SessionState {
   sessionMode: SessionMode;
   /** Session ID currently being processed by the LLM (null if idle). */
   processingSessionId: string | null;
-  /** When true, RUN_STEP actions auto-confirm without user clicking. */
+  /** When true, both RUN_STEP actions and NeedsApproval modals auto-proceed. */
   autoConfirm: boolean;
   changes: ChangeEntry[];
   pendingApproval: ApprovalRequest | null;

@@ -24,10 +24,7 @@
     "diagnosticChecks": "运行了 {count} 项诊断检查",
     "plusDiagnostics": "+ {count} 项诊断检查",
     "followUp": "跟进之前的问题",
-    "checkOn": "查看：{title}",
-    "alwaysContinue": "始终继续",
-    "autoConfirmActive": "自动执行操作中",
-    "stop": "停止"
+    "checkOn": "查看：{title}"
   },
   "welcome": {
     "greeting": "你好，我是 Noah",
@@ -149,10 +146,11 @@
     "scanFooter": "扫描结果帮助 Noah 在你询问磁盘空间、性能或系统健康状况时提供更快、更准确的建议。数据保留在你的设备上。"
   },
   "approval": {
-    "title": "我可以执行这个操作吗？",
+    "title": "Noah 可以执行这个操作吗？",
     "defaultReason": "Noah 需要你的确认才能继续。",
     "deny": "不用了",
-    "approve": "继续"
+    "approve": "继续",
+    "approveAll": "好的，不用再问我了"
   },
   "update": {
     "available": "Noah v{version} 可用。",

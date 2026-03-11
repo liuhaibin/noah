@@ -24,10 +24,7 @@
     "diagnosticChecks": "Ran {count} diagnostic check{s}",
     "plusDiagnostics": "+ {count} diagnostic check{s}",
     "followUp": "Follow up on a previous issue",
-    "checkOn": "Check on: {title}",
-    "alwaysContinue": "Always continue",
-    "autoConfirmActive": "Auto-continuing actions",
-    "stop": "Stop"
+    "checkOn": "Check on: {title}"
   },
   "welcome": {
     "greeting": "Hey, I'm Noah",
@@ -149,10 +146,11 @@
     "scanFooter": "Scan results are used by Noah to give faster, more accurate advice when you ask about disk space, performance, or system health. Data stays on your device."
   },
   "approval": {
-    "title": "Can I do this?",
+    "title": "Can Noah do this?",
     "defaultReason": "Noah needs your OK to continue.",
     "deny": "No thanks",
-    "approve": "Go ahead"
+    "approve": "Go ahead",
+    "approveAll": "Yes, and don't ask me again"
   },
   "update": {
     "available": "Noah v{version} is available.",
