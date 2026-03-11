@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use itman_tools::ChangeRecord;
+use noah_tools::ChangeRecord;
 
 /// Safely truncate a UTF-8 string to at most `max_chars` characters.
 fn truncate_utf8(s: &str, max_chars: usize) -> String {

@@ -325,7 +325,7 @@ mod tests {
 
     #[test]
     fn save_and_load_round_trip() {
-        let dir = std::env::temp_dir().join("itman_test_machine_ctx");
+        let dir = std::env::temp_dir().join("noah_test_machine_ctx");
         let _ = fs::create_dir_all(&dir);
         let ctx = MachineContext::gather();
         ctx.save(&dir);
@@ -338,14 +338,14 @@ mod tests {
 
     #[test]
     fn load_returns_none_for_missing_file() {
-        let dir = std::env::temp_dir().join("itman_test_missing_ctx");
+        let dir = std::env::temp_dir().join("noah_test_missing_ctx");
         let _ = fs::remove_dir_all(&dir);
         assert!(MachineContext::load(&dir).is_none());
     }
 
     #[test]
     fn load_returns_none_for_corrupt_json() {
-        let dir = std::env::temp_dir().join("itman_test_corrupt_ctx");
+        let dir = std::env::temp_dir().join("noah_test_corrupt_ctx");
         let _ = fs::create_dir_all(&dir);
         fs::write(dir.join(CACHE_FILE), "not valid json{{{").unwrap();
         assert!(MachineContext::load(&dir).is_none());

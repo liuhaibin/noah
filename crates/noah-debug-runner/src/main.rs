@@ -21,7 +21,7 @@ async fn main() -> ExitCode {
     eprintln!("Max turns: {}", max_turns);
     eprintln!("---");
 
-    match itman_desktop_lib::debug_runner::run_prompt_flow(&prompt, max_turns).await {
+    match noah_desktop_lib::debug_runner::run_prompt_flow(&prompt, max_turns).await {
         Ok(result) => {
             println!("SESSION_ID={}", result.session_id);
             for (idx, (input, output)) in result.turns.iter().enumerate() {

@@ -12,7 +12,7 @@ use std::path::PathBuf;
 fn journal_db_path() -> Option<PathBuf> {
     let home = std::env::var("HOME").ok()?;
     let path = PathBuf::from(home)
-        .join("Library/Application Support/com.itman.app/journal.db");
+        .join("Library/Application Support/com.noah.app/journal.db");
     if path.exists() { Some(path) } else { None }
 }
 

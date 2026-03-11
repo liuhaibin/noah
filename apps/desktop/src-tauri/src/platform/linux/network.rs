@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::process::Command;
 
-use itman_tools::{SafetyTier, Tool, ToolResult};
+use noah_tools::{SafetyTier, Tool, ToolResult};
 
 // ── LinuxNetworkInfo ──────────────────────────────────────────────────
 

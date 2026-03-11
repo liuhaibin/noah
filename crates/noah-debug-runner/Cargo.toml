@@ -9,5 +9,5 @@ name = "noah-backend-prompt"
 path = "src/main.rs"
 
 [dependencies]
-itman-desktop-lib = { path = "../../apps/desktop/src-tauri", package = "itman-desktop" }
+noah-desktop-lib = { path = "../../apps/desktop/src-tauri", package = "noah-desktop" }
 tokio = { version = "1", features = ["full"] }

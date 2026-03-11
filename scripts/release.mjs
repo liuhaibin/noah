@@ -233,7 +233,7 @@ async function main() {
   const tag = args.tag || `v${version}`;
   const uploading = args.mode === "upload";
 
-  console.log(`==> Building itman ${tag} on ${process.platform}/${process.arch}`);
+  console.log(`==> Building noah ${tag} on ${process.platform}/${process.arch}`);
 
   if (!(await hasCommand("pnpm"))) {
     throw new Error("Missing required command: pnpm");
@@ -279,7 +279,7 @@ async function main() {
   }
 
   console.log("==> Running tauri build...");
-  const tauriBuildArgs = ["--filter", "@itman/desktop", "tauri", "build"];
+  const tauriBuildArgs = ["--filter", "@noah/desktop", "tauri", "build"];
   if (IS_MAC) {
     tauriBuildArgs.push("--target", "universal-apple-darwin");
     console.log("==> Building universal binary (ARM + Intel)");

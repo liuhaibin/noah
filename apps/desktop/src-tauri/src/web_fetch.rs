@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
-use itman_tools::{SafetyTier, Tool, ToolResult};
+use noah_tools::{SafetyTier, Tool, ToolResult};
 
 const MAX_BODY_BYTES: usize = 512 * 1024; // 512KB
 const MAX_OUTPUT_CHARS: usize = 100_000;

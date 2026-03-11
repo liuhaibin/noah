@@ -1,7 +1,7 @@
 # Next Steps
 
 1. Install deps: `pnpm install`
-2. Run app: `pnpm --filter @itman/desktop tauri dev` (or `./run_mac.sh`)
+2. Run app: `pnpm --filter @noah/desktop tauri dev` (or `./run_mac.sh`)
 3. Verify baseline: `cargo test --workspace` and `npx tsc --noEmit`
 4. Read code in order:
    - Frontend: `apps/desktop/src/`
@@ -13,4 +13,4 @@ Version-sync reminder before release:
 - `apps/desktop/src-tauri/tauri.conf.json`
 - `apps/desktop/package.json`
 - `apps/desktop/src-tauri/Cargo.toml`
-- `crates/itman-tools/Cargo.toml`
+- `crates/noah-tools/Cargo.toml`

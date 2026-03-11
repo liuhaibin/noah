@@ -5,10 +5,10 @@ use serde_json::json;
 
 #[test]
 fn ui_tools_register_in_router() {
-    use itman_desktop_lib::agent::tool_router::ToolRouter;
+    use noah_desktop_lib::agent::tool_router::ToolRouter;
 
     let mut router = ToolRouter::new();
-    itman_desktop_lib::ui_tools::register_ui_tools(&mut router);
+    noah_desktop_lib::ui_tools::register_ui_tools(&mut router);
 
     // All 4 UI tools should be registered
     assert!(router.find_tool("ui_spa").is_some(), "ui_spa not registered");
@@ -19,11 +19,11 @@ fn ui_tools_register_in_router() {
 
 #[test]
 fn ui_tools_are_readonly() {
-    use itman_desktop_lib::agent::tool_router::ToolRouter;
-    use itman_tools::SafetyTier;
+    use noah_desktop_lib::agent::tool_router::ToolRouter;
+    use noah_tools::SafetyTier;
 
     let mut router = ToolRouter::new();
-    itman_desktop_lib::ui_tools::register_ui_tools(&mut router);
+    noah_desktop_lib::ui_tools::register_ui_tools(&mut router);
 
     for name in &["ui_spa", "ui_user_question", "ui_info", "ui_done"] {
         let tool = router.find_tool(name).unwrap();
@@ -38,10 +38,10 @@ fn ui_tools_are_readonly() {
 
 #[test]
 fn ui_tools_have_valid_schemas() {
-    use itman_desktop_lib::agent::tool_router::ToolRouter;
+    use noah_desktop_lib::agent::tool_router::ToolRouter;
 
     let mut router = ToolRouter::new();
-    itman_desktop_lib::ui_tools::register_ui_tools(&mut router);
+    noah_desktop_lib::ui_tools::register_ui_tools(&mut router);
 
     let defs = router.tool_definitions();
     let ui_defs: Vec<_> = defs
@@ -68,10 +68,10 @@ fn ui_tools_have_valid_schemas() {
 
 #[tokio::test]
 async fn ui_spa_tool_executes_correctly() {
-    use itman_desktop_lib::agent::tool_router::ToolRouter;
+    use noah_desktop_lib::agent::tool_router::ToolRouter;
 
     let mut router = ToolRouter::new();
-    itman_desktop_lib::ui_tools::register_ui_tools(&mut router);
+    noah_desktop_lib::ui_tools::register_ui_tools(&mut router);
 
     let tool = router.find_tool("ui_spa").unwrap();
     let input = json!({
@@ -96,10 +96,10 @@ async fn ui_spa_tool_executes_correctly() {
 
 #[tokio::test]
 async fn ui_user_question_executes_correctly() {
-    use itman_desktop_lib::agent::tool_router::ToolRouter;
+    use noah_desktop_lib::agent::tool_router::ToolRouter;
 
     let mut router = ToolRouter::new();
-    itman_desktop_lib::ui_tools::register_ui_tools(&mut router);
+    noah_desktop_lib::ui_tools::register_ui_tools(&mut router);
 
     let tool = router.find_tool("ui_user_question").unwrap();
     let input = json!({
@@ -126,10 +126,10 @@ async fn ui_user_question_executes_correctly() {
 
 #[tokio::test]
 async fn ui_done_executes_correctly() {
-    use itman_desktop_lib::agent::tool_router::ToolRouter;
+    use noah_desktop_lib::agent::tool_router::ToolRouter;
 
     let mut router = ToolRouter::new();
-    itman_desktop_lib::ui_tools::register_ui_tools(&mut router);
+    noah_desktop_lib::ui_tools::register_ui_tools(&mut router);
 
     let tool = router.find_tool("ui_done").unwrap();
     let input = json!({"summary_md": "DNS cache flushed. Your internet should be working now."});
@@ -143,10 +143,10 @@ async fn ui_done_executes_correctly() {
 
 #[tokio::test]
 async fn ui_info_executes_correctly() {
-    use itman_desktop_lib::agent::tool_router::ToolRouter;
+    use noah_desktop_lib::agent::tool_router::ToolRouter;
 
     let mut router = ToolRouter::new();
-    itman_desktop_lib::ui_tools::register_ui_tools(&mut router);
+    noah_desktop_lib::ui_tools::register_ui_tools(&mut router);
 
     let tool = router.find_tool("ui_info").unwrap();
     let input = json!({"summary_md": "I can't delete files for safety reasons."});
@@ -160,10 +160,10 @@ async fn ui_info_executes_correctly() {
 
 #[tokio::test]
 async fn ui_spa_rejects_invalid_action_type() {
-    use itman_desktop_lib::agent::tool_router::ToolRouter;
+    use noah_desktop_lib::agent::tool_router::ToolRouter;
 
     let mut router = ToolRouter::new();
-    itman_desktop_lib::ui_tools::register_ui_tools(&mut router);
+    noah_desktop_lib::ui_tools::register_ui_tools(&mut router);
 
     let tool = router.find_tool("ui_spa").unwrap();
     let input = json!({
@@ -178,7 +178,7 @@ async fn ui_spa_rejects_invalid_action_type() {
 
 #[test]
 fn ui_payload_from_tool_call_validates() {
-    use itman_desktop_lib::ui_tools::ui_payload_from_tool_call;
+    use noah_desktop_lib::ui_tools::ui_payload_from_tool_call;
 
     // Valid
     assert!(ui_payload_from_tool_call("ui_spa", &json!({

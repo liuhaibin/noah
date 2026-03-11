@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    itman_desktop_lib::run()
+    noah_desktop_lib::run()
 }

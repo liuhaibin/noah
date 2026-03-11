@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
-use itman_tools::{SafetyTier, Tool, ToolResult};
+use noah_tools::{SafetyTier, Tool, ToolResult};
 
 // ── Constants ───────────────────────────────────────────────────────────
 

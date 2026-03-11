@@ -36,15 +36,15 @@ fn default_app_dir() -> Result<PathBuf> {
     let home = std::env::var("HOME").context("HOME is not set")?;
     #[cfg(target_os = "macos")]
     {
-        Ok(PathBuf::from(home).join("Library/Application Support/com.itman.app"))
+        Ok(PathBuf::from(home).join("Library/Application Support/com.noah.app"))
     }
     #[cfg(target_os = "linux")]
     {
-        Ok(PathBuf::from(home).join(".local/share/com.itman.app"))
+        Ok(PathBuf::from(home).join(".local/share/com.noah.app"))
     }
     #[cfg(target_os = "windows")]
     {
-        Ok(PathBuf::from(home).join("AppData/Roaming/com.itman.app"))
+        Ok(PathBuf::from(home).join("AppData/Roaming/com.noah.app"))
     }
 }
 

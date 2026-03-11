@@ -15,7 +15,7 @@ pnpm install
 Run in development mode:
 ```bash
 export ANTHROPIC_API_KEY="your-key"   # or paste it in the app's setup screen
-pnpm --filter @itman/desktop tauri dev
+pnpm --filter @noah/desktop tauri dev
 ```
 
 Or on macOS: `./run_mac.sh`
@@ -28,21 +28,11 @@ pnpm release:build
 
 This produces platform installers (`.dmg` on macOS, `.msi`/`.exe` on Windows, Linux bundles on Linux).
 
-Shell wrappers are also available:
-
-```bash
-./release.sh --build
-```
-
-```powershell
-.\release.ps1 -BuildOnly
-```
-
 ### Run tests
 
 ```bash
 cargo test --workspace          # Rust tests
-pnpm --filter @itman/desktop test   # Frontend tests
+pnpm --filter @noah/desktop test   # Frontend tests
 npx tsc --noEmit                # TypeScript type check
 ```
 
@@ -93,7 +83,7 @@ apps/desktop/
       safety/             # Journal (change logging + undo), safety tiers
       commands/           # Tauri command handlers
 crates/
-  itman-tools/            # Shared Tool trait, SafetyTier types
+  noah-tools/             # Shared Tool trait, SafetyTier types
 ```
 
 ## Code style
@@ -114,14 +104,10 @@ Version lives in 4 files — keep them in sync:
 - `apps/desktop/src-tauri/tauri.conf.json`
 - `apps/desktop/package.json`
 - `apps/desktop/src-tauri/Cargo.toml`
-- `crates/itman-tools/Cargo.toml`
+- `crates/noah-tools/Cargo.toml`
 
 Tag format: `v{VERSION}`.
 
 Cross-platform release commands:
 - Build locally only: `pnpm release:build`
 - Build + upload artifacts to GitHub Release: `pnpm release:upload`
-
-Equivalent shell wrappers:
-- Bash: `./release.sh --upload`
-- PowerShell: `.\release.ps1 -Upload`

@@ -1,10 +1,10 @@
 {
-  "name": "itman",
+  "name": "noah",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @itman/desktop tauri dev",
-    "build": "pnpm --filter @itman/desktop tauri build",
-    "test": "cargo test && pnpm --filter @itman/desktop test",
+    "dev": "pnpm --filter @noah/desktop tauri dev",
+    "build": "pnpm --filter @noah/desktop tauri build",
+    "test": "cargo test && pnpm --filter @noah/desktop test",
     "release:build": "node ./scripts/release.mjs --build",
     "release:upload": "node ./scripts/release.mjs --upload"
   }
