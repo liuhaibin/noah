@@ -5,6 +5,7 @@ import type { SessionMode } from "../hooks/useSession";
 import { useLocale } from "../i18n";
 import * as commands from "../lib/tauri-commands";
 import type { SessionRecord } from "../lib/tauri-commands";
+import { isMac, SidebarToggleIcon, SettingsGearIcon } from "./MainTitleBar";
 
 // Map app locale to BCP 47 tag for Intl date/time formatting.
 const localeBcp47: Record<string, string> = { zh: "zh-CN", en: "en-US" };
@@ -363,22 +364,37 @@ export function Sidebar({ session }: SidebarProps) {
     [],
   );
 
+  const toggleSidebar = useSessionStore((s) => s.toggleSidebar);
+  const toggleSettings = useSessionStore((s) => s.toggleSettings);
+  const settingsOpen = useSessionStore((s) => s.settingsOpen);
+
   if (!sidebarOpen) return null;
 
   return (
     <div className="w-64 flex-shrink-0 bg-bg-secondary border-r border-border-primary flex flex-col h-full">
       {/* Nav section */}
       <div className="px-2 pt-2 pb-2 space-y-1">
-        {/* New chat */}
-        <button
-          onClick={handleNewChat}
-          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm text-text-primary hover:bg-bg-tertiary/50 transition-colors cursor-pointer"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M7 3V11M3 7H11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          {t("sidebar.newChat")}
-        </button>
+        {/* New chat + sidebar collapse (on non-macOS, collapse lives here) */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleNewChat}
+            className="flex items-center gap-2.5 flex-1 px-3 py-2 rounded-lg text-sm text-text-primary hover:bg-bg-tertiary/50 transition-colors cursor-pointer"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 3V11M3 7H11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            {t("sidebar.newChat")}
+          </button>
+          {!isMac && (
+            <button
+              onClick={toggleSidebar}
+              title="Hide sidebar"
+              className="flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-tertiary/50 transition-colors cursor-pointer flex-shrink-0"
+            >
+              <SidebarToggleIcon />
+            </button>
+          )}
+        </div>
 
         {/* Knowledge */}
         <button
@@ -446,6 +462,23 @@ export function Sidebar({ session }: SidebarProps) {
           </div>
         )}
       </div>
+
+      {/* Settings gear — on non-macOS, lives at the bottom of the sidebar */}
+      {!isMac && (
+        <div className="px-2 pb-2 pt-1 border-t border-border-primary mt-auto">
+          <button
+            onClick={toggleSettings}
+            className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
+              settingsOpen
+                ? "bg-accent-blue/15 text-accent-blue"
+                : "text-text-secondary hover:bg-bg-tertiary/50 hover:text-text-primary"
+            }`}
+          >
+            <SettingsGearIcon />
+            {t("sidebar.settings")}
+          </button>
+        </div>
+      )}
 
       {contextMenu && (
         <ContextMenu

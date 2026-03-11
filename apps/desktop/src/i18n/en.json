@@ -58,7 +58,8 @@
     "confirm": "Confirm",
     "cancel": "Cancel",
     "today": "Today, {time}",
-    "yesterday": "Yesterday, {time}"
+    "yesterday": "Yesterday, {time}",
+    "settings": "Settings"
   },
   "setup": {
     "welcomeTitle": "Welcome to Noah",

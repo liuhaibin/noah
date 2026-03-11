@@ -116,48 +116,52 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            // Build native menu bar with View > Zoom controls.
-            let app_menu = SubmenuBuilder::new(app, "Noah")
-                .about(None)
-                .separator()
-                .services()
-                .separator()
-                .hide()
-                .hide_others()
-                .show_all()
-                .separator()
-                .quit()
-                .build()?;
+            // Native menu bar — macOS only.
+            // On Linux/Windows the WM provides window controls and the menu bar
+            // just wastes vertical space with macOS-specific items (Services, Hide, etc.).
+            if cfg!(target_os = "macos") {
+                let app_menu = SubmenuBuilder::new(app, "Noah")
+                    .about(None)
+                    .separator()
+                    .services()
+                    .separator()
+                    .hide()
+                    .hide_others()
+                    .show_all()
+                    .separator()
+                    .quit()
+                    .build()?;
 
-            let edit_menu = SubmenuBuilder::new(app, "Edit")
-                .undo()
-                .redo()
-                .separator()
-                .cut()
-                .copy()
-                .paste()
-                .select_all()
-                .build()?;
+                let edit_menu = SubmenuBuilder::new(app, "Edit")
+                    .undo()
+                    .redo()
+                    .separator()
+                    .cut()
+                    .copy()
+                    .paste()
+                    .select_all()
+                    .build()?;
 
-            let view_menu = SubmenuBuilder::new(app, "View")
-                .item(&PredefinedMenuItem::fullscreen(app, None)?)
-                .build()?;
+                let view_menu = SubmenuBuilder::new(app, "View")
+                    .item(&PredefinedMenuItem::fullscreen(app, None)?)
+                    .build()?;
 
-            let window_menu = SubmenuBuilder::new(app, "Window")
-                .minimize()
-                .item(&PredefinedMenuItem::maximize(app, None)?)
-                .separator()
-                .close_window()
-                .build()?;
+                let window_menu = SubmenuBuilder::new(app, "Window")
+                    .minimize()
+                    .item(&PredefinedMenuItem::maximize(app, None)?)
+                    .separator()
+                    .close_window()
+                    .build()?;
 
-            let menu = MenuBuilder::new(app)
-                .item(&app_menu)
-                .item(&edit_menu)
-                .item(&view_menu)
-                .item(&window_menu)
-                .build()?;
+                let menu = MenuBuilder::new(app)
+                    .item(&app_menu)
+                    .item(&edit_menu)
+                    .item(&view_menu)
+                    .item(&window_menu)
+                    .build()?;
 
-            app.set_menu(menu)?;
+                app.set_menu(menu)?;
+            }
 
             // Initialise the journal database.
             let app_dir = app
