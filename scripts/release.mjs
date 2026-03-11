@@ -8,7 +8,10 @@ import { spawn } from "node:child_process";
 
 const ROOT = process.cwd();
 const TAURI_CONF_PATH = path.join(ROOT, "apps", "desktop", "src-tauri", "tauri.conf.json");
-const BUNDLE_DIR = path.join(ROOT, "target", "release", "bundle");
+const IS_MAC = process.platform === "darwin";
+const BUNDLE_DIR = IS_MAC
+  ? path.join(ROOT, "target", "universal-apple-darwin", "release", "bundle")
+  : path.join(ROOT, "target", "release", "bundle");
 const REPO = "xuy/noah";
 
 function usage() {
@@ -198,10 +201,18 @@ async function generateLatestJson(version, tag, artifacts) {
 
   existing.version = version;
   existing.pub_date = new Date().toISOString();
-  existing.platforms[target] = { url, signature };
+
+  // Universal macOS binary serves both architectures
+  if (IS_MAC) {
+    existing.platforms["darwin-aarch64"] = { url, signature };
+    existing.platforms["darwin-x86_64"] = { url, signature };
+    console.log(`==> Generated latest.json with platforms darwin-aarch64 + darwin-x86_64 (universal)`);
+  } else {
+    existing.platforms[target] = { url, signature };
+    console.log(`==> Generated latest.json with platform ${target}`);
+  }
 
   await writeFile(latestPath, JSON.stringify(existing, null, 2) + "\n");
-  console.log(`==> Generated latest.json with platform ${target}`);
   return latestPath;
 }
 
@@ -250,8 +261,19 @@ async function main() {
     process.env.NO_STRIP = 'true';
   }
 
+  // macOS universal binary: ensure x86_64 target is installed
+  if (IS_MAC) {
+    console.log("==> Ensuring x86_64-apple-darwin Rust target is installed...");
+    await runCommand("rustup", ["target", "add", "x86_64-apple-darwin"]);
+  }
+
   console.log("==> Running tauri build...");
-  await runCommand("pnpm", ["--filter", "@itman/desktop", "tauri", "build"]);
+  const tauriBuildArgs = ["--filter", "@itman/desktop", "tauri", "build"];
+  if (IS_MAC) {
+    tauriBuildArgs.push("--target", "universal-apple-darwin");
+    console.log("==> Building universal binary (ARM + Intel)");
+  }
+  await runCommand("pnpm", tauriBuildArgs);
 
   const artifacts = await collectArtifacts();
   if (artifacts.length === 0) {
