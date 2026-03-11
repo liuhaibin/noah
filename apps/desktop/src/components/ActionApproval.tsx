@@ -82,7 +82,6 @@ export function ActionApproval() {
   if (!pendingApproval || autoConfirm) return null;
 
   const reason = pendingApproval.reason || t("approval.defaultReason");
-  const toolDesc = pendingApproval.description;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-overlay backdrop-blur-sm animate-fade-in">
@@ -118,11 +117,6 @@ export function ActionApproval() {
           <p className="text-sm text-text-primary leading-relaxed">
             {reason}
           </p>
-          {toolDesc && (
-            <p className="text-xs text-text-muted mt-2 leading-relaxed">
-              {toolDesc}
-            </p>
-          )}
         </div>
 
         {/* Actions */}
