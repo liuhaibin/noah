@@ -1456,7 +1456,7 @@ export function ChatPanel() {
                 ));
               })()}
               {isProcessing && <ThinkingDots status={activityLog.status} elapsed={activityLog.elapsed} />}
-              {activityLog.activity.length > 0 && (
+              {showToolCalls && activityLog.activity.length > 0 && (
                 <ActivityLog activity={activityLog.activity} defaultExpanded={activityLog.isPlaybook} t={t} />
               )}
             </div>
