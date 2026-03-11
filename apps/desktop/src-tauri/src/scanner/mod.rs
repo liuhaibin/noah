@@ -89,7 +89,7 @@ impl ScannerManager {
 
             // Check if paused.
             {
-                let paused = self.pause_requested.lock().unwrap();
+                let Ok(paused) = self.pause_requested.lock() else { continue };
                 if paused.contains(&scan_type) {
                     self.emit_progress(&scan_type, scanner.display_name(), "paused", 0, "Paused by user");
                     continue;
@@ -183,7 +183,7 @@ impl ScannerManager {
     /// Check if an on-demand scan was requested and run it with higher budget.
     pub async fn run_triggered(&self) {
         let requested = {
-            let mut trigger = self.trigger_requested.lock().unwrap();
+            let Ok(mut trigger) = self.trigger_requested.lock() else { return };
             trigger.take()
         };
 
@@ -233,6 +233,21 @@ impl ScannerManager {
                         }
                         Err(e) => {
                             eprintln!("[scanner] on-demand {} failed: {}", scan_type, e);
+                            let now2 = chrono::Utc::now().to_rfc3339();
+                            let job = journal::ScanJobRecord {
+                                id: job_id,
+                                scan_type: scan_type.clone(),
+                                status: "failed".to_string(),
+                                progress_pct: 0,
+                                progress_detail: Some(format!("Error: {}", e)),
+                                budget_secs: Some(budget.as_secs() as i32),
+                                started_at: None,
+                                updated_at: Some(now2.clone()),
+                                completed_at: Some(now2),
+                                config: None,
+                            };
+                            let _ = journal::upsert_scan_job(&conn, &job);
+                            self.emit_progress(&scan_type, scanner.display_name(), "failed", 0, &format!("Error: {}", e));
                         }
                     }
                     break;

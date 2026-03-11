@@ -913,9 +913,8 @@ mod tests {
         // Also accept tools registered outside platform (knowledge, playbooks).
         let extra_tools = [
             "write_knowledge",
-            "search_knowledge",
-            "read_knowledge",
-            "list_knowledge",
+            "knowledge_search",
+            "knowledge_read",
             "activate_playbook",
         ];
 

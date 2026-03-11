@@ -1033,7 +1033,7 @@ const TOOL_NAMES_WITH_I18N = new Set([
   "linux_process_list", "linux_disk_usage", "linux_read_file", "linux_read_log",
   "linux_kill_process",
   "web_fetch", "activate_playbook",
-  "write_knowledge", "search_knowledge", "read_knowledge", "list_knowledge",
+  "write_knowledge", "knowledge_search", "knowledge_read",
 ]);
 
 function humanizeToolCall(summary: string, t: (key: string) => string): string {
@@ -1095,7 +1095,6 @@ function useActivityLog(t: (key: string) => string) {
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [isPlaybook, setIsPlaybook] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const elapsedRef = useRef(0);
   const startRef = useRef(Date.now());
   const [elapsed, setElapsed] = useState(0);
 
@@ -1105,12 +1104,12 @@ function useActivityLog(t: (key: string) => string) {
       if (evt.event_type === "tool_call") {
         setStatus(humanizeToolCall(evt.summary, t));
         startRef.current = Date.now();
-        elapsedRef.current = 0;
+
         setElapsed(0);
       } else if (evt.event_type === "llm_request") {
         setStatus(t("chat.thinking"));
         startRef.current = Date.now();
-        elapsedRef.current = 0;
+
         setElapsed(0);
       } else if (evt.event_type === "playbook_activated") {
         setIsPlaybook(true);

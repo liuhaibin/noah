@@ -256,9 +256,8 @@
     "web_fetch": "Fetching web page",
     "activate_playbook": "Activating playbook",
     "write_knowledge": "Saving knowledge",
-    "search_knowledge": "Searching knowledge",
-    "read_knowledge": "Reading knowledge",
-    "list_knowledge": "Listing knowledge"
+    "knowledge_search": "Searching knowledge",
+    "knowledge_read": "Reading knowledge"
   },
   "changes": {
     "mac_flush_dns": "Flushed DNS",

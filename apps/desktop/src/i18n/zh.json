@@ -256,9 +256,8 @@
     "web_fetch": "获取网页内容",
     "activate_playbook": "激活操作手册",
     "write_knowledge": "保存知识",
-    "search_knowledge": "搜索知识",
-    "read_knowledge": "读取知识",
-    "list_knowledge": "列出知识"
+    "knowledge_search": "搜索知识",
+    "knowledge_read": "读取知识"
   },
   "changes": {
     "mac_flush_dns": "已刷新 DNS",

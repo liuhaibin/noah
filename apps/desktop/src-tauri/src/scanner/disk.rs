@@ -304,19 +304,19 @@ impl Scanner for DiskScanner {
         }
 
         // Process queue entries until budget exhausted.
-        while !state.queue.is_empty() {
+        while let Some(dir) = state.queue.pop_front() {
             // Check budget.
             if start.elapsed() >= budget {
+                state.queue.push_front(dir);
                 break;
             }
 
             // Check load every few dirs.
             if Self::load_average() > 4.0 {
                 eprintln!("[disk_scanner] pausing: system load high");
+                state.queue.push_front(dir);
                 break;
             }
-
-            let dir = state.queue.pop_front().unwrap();
             eprintln!("[disk_scanner] scanning {}", dir);
 
             match Self::du_children(&dir) {
