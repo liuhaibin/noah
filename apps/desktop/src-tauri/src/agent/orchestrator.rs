@@ -263,6 +263,7 @@ impl Orchestrator {
                 playbook: None,
                 secrets: HashMap::new(),
                 locale: None,
+                mode: "default".to_string(),
             };
             self.sessions.insert(session_id.to_string(), session);
         }
