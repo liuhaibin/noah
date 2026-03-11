@@ -1,0 +1,214 @@
+#!/usr/bin/env bash
+# Noah development CLI — one script, all platforms.
+#
+# Usage:
+#   ./dev              — run in dev mode (hot-reload)
+#   ./dev build        — release build (binary only)
+#   ./dev appimage     — build cross-distro AppImage (Linux only)
+#   ./dev check        — cargo check (fast compile test)
+#   ./dev test         — run frontend tests
+#   ./dev release      — build + upload via scripts/release.mjs
+#
+# Environment variables (all optional):
+#   ANTHROPIC_API_KEY       — Anthropic API key (or configure in-app)
+#   NOAH_API_URL            — override API endpoint
+#   NOAH_MODEL              — override model name
+#   NOAH_TIMEOUT            — HTTP timeout in seconds
+#   NOAH_APP_DIR            — override app data directory
+#   NOAH_PLATFORM           — override platform context string
+#   NOAH_MODE=learn         — enable knowledge-creation system prompt
+#   NOAH_SECRETS='{"k":"v"}'  — pre-configure secrets (JSON)
+#   NOAH_ANSWERS='{"k":"v"}'  — pre-configure text answers (JSON)
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+MODE="${1:-dev}"
+shift 2>/dev/null || true  # consume mode arg, remaining args pass through
+
+OS="$(uname -s)"
+
+# ── Platform detection ──────────────────────────────────────────────
+
+detect_linux_container() {
+    # On immutable Linux (Aurora/Silverblue), builds run in distrobox.
+    # rust-dev (Fedora)    → dev, build, check, test
+    # noah-build (Ubuntu)  → appimage (glibc 2.35 baseline)
+    local container="$1"
+    if ! command -v distrobox &>/dev/null; then
+        echo "ERROR: distrobox not found. Install it or run directly on a mutable distro." >&2
+        exit 1
+    fi
+    local boxes
+    boxes="$(distrobox list 2>/dev/null || true)"
+    if ! echo "$boxes" | grep -qw "$container"; then
+        echo "ERROR: distrobox '$container' not found." >&2
+        echo "  Create it with: distrobox create --name $container --image <image>" >&2
+        exit 1
+    fi
+}
+
+# Forward Noah env vars into distrobox
+distrobox_env_args() {
+    local args=()
+    for var in ANTHROPIC_API_KEY NOAH_API_URL NOAH_MODEL NOAH_TIMEOUT \
+               NOAH_APP_DIR NOAH_PLATFORM NOAH_MODE NOAH_SECRETS NOAH_ANSWERS; do
+        if [[ -n "${!var:-}" ]]; then
+            args+=(--env "${var}=${!var}")
+        fi
+    done
+    echo "${args[@]}"
+}
+
+# ── macOS: find a free port for Vite ────────────────────────────────
+
+find_free_port() {
+    local port=1420
+    while lsof -iTCP:"$port" -sTCP:LISTEN -t &>/dev/null; do
+        echo "[dev] Port $port in use, trying next..." >&2
+        port=$((port + 2))  # +2 because HMR uses port+1
+    done
+    echo "$port"
+}
+
+# ── Commands ────────────────────────────────────────────────────────
+
+cmd_dev() {
+    case "$OS" in
+        Darwin)
+            # Load API key if available
+            if [[ -z "${ANTHROPIC_API_KEY:-}" && -f "$HOME/.secrets/claude.txt" ]]; then
+                export ANTHROPIC_API_KEY="$(sed 's/^ANTHROPIC_API_KEY=//' "$HOME/.secrets/claude.txt")"
+            fi
+            local port
+            port=$(find_free_port)
+            if [[ "$port" -ne 1420 ]]; then
+                echo "[dev] Using port $port (default 1420 was busy)"
+            fi
+            export VITE_PORT="$port"
+            cd "$ROOT/apps/desktop"
+            exec pnpm tauri dev --config "{\"build\":{\"devUrl\":\"http://localhost:$port\"}}"
+            ;;
+        Linux)
+            detect_linux_container "rust-dev"
+            local env_args
+            env_args=$(distrobox_env_args)
+            echo "Launching Noah in dev mode (hot-reload)..."
+            # shellcheck disable=SC2086
+            distrobox enter rust-dev $env_args -- \
+                bash -c "cd '$ROOT/apps/desktop' && pnpm tauri dev"
+            ;;
+        *)
+            echo "ERROR: dev mode not supported on $OS from this script." >&2
+            echo "  On Windows, use: cd apps/desktop && pnpm tauri dev" >&2
+            exit 1
+            ;;
+    esac
+}
+
+cmd_build() {
+    case "$OS" in
+        Darwin)
+            cd "$ROOT/apps/desktop"
+            pnpm tauri build --bundles none "$@"
+            echo "Binary: $ROOT/target/release/itman-desktop"
+            ;;
+        Linux)
+            detect_linux_container "rust-dev"
+            echo "Building Noah release binary..."
+            distrobox enter rust-dev -- \
+                bash -c "cd '$ROOT/apps/desktop' && pnpm tauri build --bundles none $* 2>&1"
+            echo "Binary: $ROOT/target/release/itman-desktop"
+            ;;
+        *)
+            echo "ERROR: Use build-windows.ps1 on Windows." >&2
+            exit 1
+            ;;
+    esac
+}
+
+cmd_appimage() {
+    if [[ "$OS" != "Linux" ]]; then
+        echo "ERROR: appimage is Linux-only." >&2
+        exit 1
+    fi
+    detect_linux_container "noah-build"
+    echo "Building AppImage (Ubuntu 22.04 / glibc 2.35 baseline)..."
+    distrobox enter noah-build -- \
+        bash -c "source ~/.cargo/env && cd '$ROOT/apps/desktop' && \
+                 rm -rf '$ROOT/target/release/bundle/appimage' && \
+                 NO_STRIP=true pnpm tauri build --bundles appimage 2>&1"
+    local appimage
+    appimage=$(find "$ROOT/target/release/bundle/appimage" -name "*.AppImage" 2>/dev/null | head -1)
+    if [[ -n "$appimage" ]]; then
+        echo "AppImage: $appimage"
+        echo "Size: $(du -h "$appimage" | cut -f1)"
+    fi
+}
+
+cmd_check() {
+    case "$OS" in
+        Darwin)
+            cd "$ROOT"
+            cargo check -p itman-desktop "$@"
+            ;;
+        Linux)
+            detect_linux_container "rust-dev"
+            distrobox enter rust-dev -- \
+                bash -c "cd '$ROOT' && cargo check -p itman-desktop $*"
+            ;;
+        *)
+            cd "$ROOT"
+            cargo check -p itman-desktop "$@"
+            ;;
+    esac
+}
+
+cmd_test() {
+    cd "$ROOT/apps/desktop"
+    pnpm test "$@"
+}
+
+cmd_release() {
+    cd "$ROOT"
+    node scripts/release.mjs "$@"
+}
+
+cmd_run() {
+    case "$OS" in
+        Darwin)
+            exec "$ROOT/target/release/itman-desktop"
+            ;;
+        Linux)
+            detect_linux_container "rust-dev"
+            local env_args
+            env_args=$(distrobox_env_args)
+            # shellcheck disable=SC2086
+            distrobox enter rust-dev $env_args -- \
+                "$ROOT/target/release/itman-desktop"
+            ;;
+        *)
+            exec "$ROOT/target/release/itman-desktop.exe"
+            ;;
+    esac
+}
+
+# ── Dispatch ────────────────────────────────────────────────────────
+
+case "$MODE" in
+    dev)      cmd_dev "$@" ;;
+    build)    cmd_build "$@" ;;
+    appimage) cmd_appimage ;;
+    check)    cmd_check "$@" ;;
+    test)     cmd_test "$@" ;;
+    release)  cmd_release "$@" ;;
+    run)      cmd_run ;;
+    -h|--help|help)
+        sed -n '2,/^$/{ s/^# \?//; p }' "$0"
+        ;;
+    *)
+        echo "Unknown command: $MODE"
+        echo "Usage: $0 [dev|build|appimage|check|test|release|run]"
+        exit 1
+        ;;
+esac
