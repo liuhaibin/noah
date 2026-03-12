@@ -1413,7 +1413,7 @@ export function ChatPanel() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto px-6 pt-4">
         {showWelcome ? (
           <div className="flex flex-col items-center justify-center h-full gap-8">
             <WelcomeHero hasContextual={false} learnMode={sessionMode === "learn"} />
@@ -1460,13 +1460,13 @@ export function ChatPanel() {
                 <ActivityLog activity={activityLog.activity} defaultExpanded={activityLog.isPlaybook} t={t} />
               )}
             </div>
+            <div ref={messagesEndRef} />
             <div
               data-testid="chat-input-footer"
-              className="sticky bottom-0 z-10 pt-3 pb-3 bg-bg-primary border-t border-border-primary/50 shadow-[0_-6px_18px_rgba(0,0,0,0.16)]"
+              className="sticky bottom-0 z-10 pt-6 pb-3 bg-gradient-to-t from-bg-primary from-60% to-transparent"
             >
               {inputCard}
             </div>
-            <div ref={messagesEndRef} />
           </div>
         )}
       </div>

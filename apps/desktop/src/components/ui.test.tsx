@@ -283,8 +283,7 @@ describe("ChangesBlock", () => {
     const footer = screen.getByTestId("chat-input-footer");
     expect(footer.className).toContain("sticky");
     expect(footer.className).toContain("z-10");
-    expect(footer.className).toContain("bg-bg-primary");
-    expect(footer.className).toContain("shadow-[0_-6px_18px_rgba(0,0,0,0.16)]");
+    expect(footer.className).toContain("bg-gradient-to-t");
   });
 });
 
