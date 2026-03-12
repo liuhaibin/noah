@@ -102,6 +102,67 @@ pub fn clear_auth_files(app_dir: &std::path::Path) {
     let _ = std::fs::remove_file(app_dir.join("proxy.json"));
 }
 
+/// Migrate user data from the old `com.itman.app` directory to the new location.
+///
+/// Tauri derives the app data dir from `identifier` in tauri.conf.json.
+/// We renamed from `com.itman.app` → `app.onnoah.desktop`, so existing users
+/// have their DB, keys, and knowledge under the old path. This function copies
+/// all files from the old dir into the new dir (without overwriting), then
+/// removes the old directory.
+fn migrate_old_data_dir(new_dir: &std::path::Path) {
+    // Build the old path by replacing the last component.
+    let Some(parent) = new_dir.parent() else { return };
+    let old_dir = parent.join("com.itman.app");
+
+    if !old_dir.is_dir() {
+        return;
+    }
+
+    // If the new dir already has a journal.db, the user has already used the
+    // new version — don't overwrite their data.
+    if new_dir.join("journal.db").exists() {
+        eprintln!(
+            "[migrate] New data dir already has journal.db, skipping migration from {:?}",
+            old_dir
+        );
+        return;
+    }
+
+    eprintln!(
+        "[migrate] Moving data from {:?} to {:?}",
+        old_dir, new_dir
+    );
+
+    // Copy everything from old → new recursively.
+    if let Err(e) = copy_dir_recursive(&old_dir, new_dir) {
+        eprintln!("[migrate] Error copying data: {}. Old dir preserved.", e);
+        return;
+    }
+
+    // Remove old dir after successful copy.
+    if let Err(e) = std::fs::remove_dir_all(&old_dir) {
+        eprintln!("[migrate] Could not remove old dir {:?}: {}", old_dir, e);
+    } else {
+        eprintln!("[migrate] Migration complete, old dir removed.");
+    }
+}
+
+/// Recursively copy contents of `src` into `dst`, skipping files that already exist.
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else if !dst_path.exists() {
+            std::fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Disable GPU acceleration for WebKit2GTK on Linux to fix GBM/EGL errors
@@ -169,6 +230,9 @@ pub fn run() {
                 .app_data_dir()
                 .expect("Failed to resolve app data directory");
             std::fs::create_dir_all(&app_dir).expect("Failed to create app data directory");
+
+            // Migrate data from old app identifiers (com.itman.app) if present.
+            migrate_old_data_dir(&app_dir);
 
             let db_path = app_dir.join("journal.db");
             let db_path_str = db_path.to_str().expect("Invalid database path");
@@ -347,4 +411,93 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_migrate_copies_files_and_removes_old_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let parent = tmp.path();
+
+        // Set up old dir with some files.
+        let old_dir = parent.join("com.itman.app");
+        fs::create_dir_all(old_dir.join("knowledge")).unwrap();
+        fs::write(old_dir.join("journal.db"), b"fake-db-content").unwrap();
+        fs::write(old_dir.join("api_key.txt"), b"sk-ant-test").unwrap();
+        fs::write(old_dir.join("knowledge/note.md"), b"# My note").unwrap();
+
+        // New dir exists but is empty (no journal.db).
+        let new_dir = parent.join("app.onnoah.desktop");
+        fs::create_dir_all(&new_dir).unwrap();
+
+        migrate_old_data_dir(&new_dir);
+
+        // Files should be in the new dir.
+        assert_eq!(fs::read_to_string(new_dir.join("journal.db")).unwrap(), "fake-db-content");
+        assert_eq!(fs::read_to_string(new_dir.join("api_key.txt")).unwrap(), "sk-ant-test");
+        assert_eq!(fs::read_to_string(new_dir.join("knowledge/note.md")).unwrap(), "# My note");
+
+        // Old dir should be gone.
+        assert!(!old_dir.exists());
+    }
+
+    #[test]
+    fn test_migrate_skips_when_new_dir_has_journal() {
+        let tmp = tempfile::tempdir().unwrap();
+        let parent = tmp.path();
+
+        // Old dir with data.
+        let old_dir = parent.join("com.itman.app");
+        fs::create_dir_all(&old_dir).unwrap();
+        fs::write(old_dir.join("journal.db"), b"old-data").unwrap();
+
+        // New dir already has its own journal.db.
+        let new_dir = parent.join("app.onnoah.desktop");
+        fs::create_dir_all(&new_dir).unwrap();
+        fs::write(new_dir.join("journal.db"), b"new-data").unwrap();
+
+        migrate_old_data_dir(&new_dir);
+
+        // New data should be untouched.
+        assert_eq!(fs::read_to_string(new_dir.join("journal.db")).unwrap(), "new-data");
+        // Old dir should still exist (not removed since migration was skipped).
+        assert!(old_dir.exists());
+    }
+
+    #[test]
+    fn test_migrate_noop_when_no_old_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let new_dir = tmp.path().join("app.onnoah.desktop");
+        fs::create_dir_all(&new_dir).unwrap();
+
+        // Should not panic or error.
+        migrate_old_data_dir(&new_dir);
+    }
+
+    #[test]
+    fn test_migrate_does_not_overwrite_existing_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let parent = tmp.path();
+
+        let old_dir = parent.join("com.itman.app");
+        fs::create_dir_all(&old_dir).unwrap();
+        fs::write(old_dir.join("api_key.txt"), b"old-key").unwrap();
+        fs::write(old_dir.join("journal.db"), b"old-db").unwrap();
+
+        // New dir has api_key.txt but no journal.db → migration runs.
+        let new_dir = parent.join("app.onnoah.desktop");
+        fs::create_dir_all(&new_dir).unwrap();
+        fs::write(new_dir.join("api_key.txt"), b"new-key").unwrap();
+
+        migrate_old_data_dir(&new_dir);
+
+        // Existing file should not be overwritten.
+        assert_eq!(fs::read_to_string(new_dir.join("api_key.txt")).unwrap(), "new-key");
+        // But new files should be copied.
+        assert_eq!(fs::read_to_string(new_dir.join("journal.db")).unwrap(), "old-db");
+    }
 }

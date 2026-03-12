@@ -13,12 +13,12 @@
 **Steps:**
 1. Delete the playbooks directory if it exists:
    ```bash
-   rm -rf ~/Library/Application\ Support/com.noah.app/playbooks/
+   rm -rf ~/Library/Application\ Support/app.onnoah.desktop/playbooks/
    ```
 2. Launch the dev app: `cd apps/desktop && npm run tauri dev`
 3. Check the directory was created:
    ```bash
-   ls -la ~/Library/Application\ Support/com.noah.app/playbooks/
+   ls -la ~/Library/Application\ Support/app.onnoah.desktop/playbooks/
    ```
 
 **Expected:**
@@ -211,7 +211,7 @@
 **Steps:**
 1. Create a custom playbook:
    ```bash
-   cat > ~/Library/Application\ Support/com.noah.app/playbooks/test-playbook.md << 'PLAYBOOK'
+   cat > ~/Library/Application\ Support/app.onnoah.desktop/playbooks/test-playbook.md << 'PLAYBOOK'
    ---
    name: test-custom
    description: A test playbook to verify custom playbook loading
@@ -264,12 +264,12 @@
 **Steps:**
 1. Edit a built-in playbook:
    ```bash
-   echo "CUSTOM EDIT" >> ~/Library/Application\ Support/com.noah.app/playbooks/network-diagnostics.md
+   echo "CUSTOM EDIT" >> ~/Library/Application\ Support/app.onnoah.desktop/playbooks/network-diagnostics.md
    ```
 2. Restart the app
 3. Check the file:
    ```bash
-   tail -1 ~/Library/Application\ Support/com.noah.app/playbooks/network-diagnostics.md
+   tail -1 ~/Library/Application\ Support/app.onnoah.desktop/playbooks/network-diagnostics.md
    ```
 
 **Expected:**
@@ -303,7 +303,7 @@ cd apps/desktop/src-tauri && cargo test playbooks -- --nocapture
 
 After testing, remove the custom test playbook:
 ```bash
-rm ~/Library/Application\ Support/com.noah.app/playbooks/test-playbook.md
+rm ~/Library/Application\ Support/app.onnoah.desktop/playbooks/test-playbook.md
 ```
 
 ---

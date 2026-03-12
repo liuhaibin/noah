@@ -111,14 +111,14 @@ cmd_build() {
         Darwin)
             cd "$ROOT/apps/desktop"
             pnpm tauri build --bundles none "$@"
-            echo "Binary: $ROOT/target/release/itman-desktop"
+            echo "Binary: $ROOT/target/release/noah-desktop"
             ;;
         Linux)
             detect_linux_container "rust-dev"
             echo "Building Noah release binary..."
             distrobox enter rust-dev -- \
                 bash -c "cd '$ROOT/apps/desktop' && pnpm tauri build --bundles none $* 2>&1"
-            echo "Binary: $ROOT/target/release/itman-desktop"
+            echo "Binary: $ROOT/target/release/noah-desktop"
             ;;
         *)
             echo "ERROR: Use build-windows.ps1 on Windows." >&2
@@ -156,15 +156,15 @@ cmd_check() {
     echo "── Cargo check ──"
     case "$OS" in
         Darwin)
-            (cd "$ROOT" && cargo check -p itman-desktop "$@")
+            (cd "$ROOT" && cargo check -p noah-desktop "$@")
             ;;
         Linux)
             detect_linux_container "rust-dev"
             distrobox enter rust-dev -- \
-                bash -c "cd '$ROOT' && cargo check -p itman-desktop $*"
+                bash -c "cd '$ROOT' && cargo check -p noah-desktop $*"
             ;;
         *)
-            (cd "$ROOT" && cargo check -p itman-desktop "$@")
+            (cd "$ROOT" && cargo check -p noah-desktop "$@")
             ;;
     esac
 
@@ -184,7 +184,7 @@ cmd_release() {
 cmd_run() {
     case "$OS" in
         Darwin)
-            exec "$ROOT/target/release/itman-desktop"
+            exec "$ROOT/target/release/noah-desktop"
             ;;
         Linux)
             detect_linux_container "rust-dev"
@@ -192,10 +192,10 @@ cmd_run() {
             env_args=$(distrobox_env_args)
             # shellcheck disable=SC2086
             distrobox enter rust-dev $env_args -- \
-                "$ROOT/target/release/itman-desktop"
+                "$ROOT/target/release/noah-desktop"
             ;;
         *)
-            exec "$ROOT/target/release/itman-desktop.exe"
+            exec "$ROOT/target/release/noah-desktop.exe"
             ;;
     esac
 }

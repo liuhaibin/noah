@@ -46,8 +46,8 @@ if (Test-Path $keyFile) {
 # ── Check-only mode ──
 
 if ($Check) {
-    Write-Host "==> Compile-checking itman-desktop..."
-    cargo check -p itman-desktop
+    Write-Host "==> Compile-checking noah-desktop..."
+    cargo check -p noah-desktop
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Write-Host "==> Compile check passed." -ForegroundColor Green
     exit 0
