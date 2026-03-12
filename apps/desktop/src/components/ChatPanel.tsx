@@ -12,6 +12,7 @@ import { useLocale } from "../i18n";
 import QRCode from "qrcode";
 
 const showToolCalls = import.meta.env.DEV;
+const STOPPING_RESET_DELAY_MS = 3000;
 
 function QrCodeImage({ data }: { data: string }) {
   const [src, setSrc] = useState<string | null>(null);
@@ -1372,8 +1373,10 @@ export function ChatPanel() {
 
   const { t } = useLocale();
   const [input, setInput] = useState("");
+  const [isStopping, setIsStopping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const stoppingResetTimeoutRef = useRef<number | null>(null);
   const activityLog = useActivityLog(t);
 
   useEffect(() => {
@@ -1387,6 +1390,22 @@ export function ChatPanel() {
       el.style.height = `${Math.min(el.scrollHeight, 300)}px`;
     }
   }, [input]);
+
+  useEffect(() => {
+    if (!isProcessing) {
+      setIsStopping(false);
+      if (stoppingResetTimeoutRef.current !== null) {
+        window.clearTimeout(stoppingResetTimeoutRef.current);
+        stoppingResetTimeoutRef.current = null;
+      }
+    }
+  }, [isProcessing]);
+
+  useEffect(() => () => {
+    if (stoppingResetTimeoutRef.current !== null) {
+      window.clearTimeout(stoppingResetTimeoutRef.current);
+    }
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     const text = input.trim();
@@ -1408,6 +1427,25 @@ export function ChatPanel() {
     },
     [sendEvent],
   );
+
+  const handleCancelProcessing = useCallback(async () => {
+    if (isStopping) return;
+    setIsStopping(true);
+    stoppingResetTimeoutRef.current = window.setTimeout(() => {
+      setIsStopping(false);
+      stoppingResetTimeoutRef.current = null;
+    }, STOPPING_RESET_DELAY_MS);
+
+    try {
+      await cancelProcessing();
+    } catch {
+      if (stoppingResetTimeoutRef.current !== null) {
+        window.clearTimeout(stoppingResetTimeoutRef.current);
+        stoppingResetTimeoutRef.current = null;
+      }
+      setIsStopping(false);
+    }
+  }, [cancelProcessing, isStopping]);
 
   const handleSecureAnswer = useCallback(
     async (secretName: string, value: string) => {
@@ -1442,17 +1480,25 @@ export function ChatPanel() {
           disabled={isProcessing}
           className="flex-1 bg-transparent text-base text-text-primary placeholder-text-muted px-4 py-3 resize-none outline-none min-h-[44px] max-h-[300px]"
         />
-        <div className="flex items-center gap-1 pr-2 pb-1.5">
+        <div className="flex items-center gap-2 pr-2 pb-1.5">
           {isProcessing ? (
-            <button
-              onClick={cancelProcessing}
-              title="Stop processing"
-              className="flex items-center justify-center w-9 h-9 rounded-lg bg-accent-red/15 text-accent-red hover:bg-accent-red/25 transition-all duration-200 cursor-pointer"
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor" />
-              </svg>
-            </button>
+            <>
+              <button
+                onClick={handleCancelProcessing}
+                title="Stop processing"
+                disabled={isStopping}
+                className="flex items-center justify-center w-9 h-9 rounded-lg bg-accent-red/15 text-accent-red hover:bg-accent-red/25 disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor" />
+                </svg>
+              </button>
+              {isStopping && (
+                <span className="text-xs text-text-muted whitespace-nowrap" aria-live="polite">
+                  {t("chat.stopping")}
+                </span>
+              )}
+            </>
           ) : (
             <button
               onClick={handleSubmit}
@@ -1521,7 +1567,12 @@ export function ChatPanel() {
                   />
                 ));
               })()}
-              {isProcessing && <ThinkingDots status={activityLog.status} elapsed={activityLog.elapsed} />}
+              {isProcessing && (
+                <ThinkingDots
+                  status={activityLog.status}
+                  elapsed={activityLog.elapsed}
+                />
+              )}
               {showToolCalls && activityLog.activity.length > 0 && (
                 <ActivityLog activity={activityLog.activity} defaultExpanded={activityLog.isPlaybook} t={t} />
               )}

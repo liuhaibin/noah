@@ -7,12 +7,25 @@
 // browser APIs work in both node and jsdom environments.
 if (typeof globalThis.localStorage?.getItem !== "function") {
   const store = new Map<string, string>();
-  globalThis.localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => { store.set(k, String(v)); },
-    removeItem: (k: string) => { store.delete(k); },
-    clear: () => { store.clear(); },
-    get length() { return store.size; },
-    key: (i: number) => [...store.keys()][i] ?? null,
-  } as Storage;
+  const storage = {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, String(value));
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    clear: () => {
+      store.clear();
+    },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    get length() {
+      return store.size;
+    },
+  } satisfies Storage;
+
+  Object.defineProperty(globalThis, "localStorage", {
+    value: storage,
+    configurable: true,
+  });
 }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // jsdom doesn't implement scrollIntoView — stub it for ChatPanel's useEffect
@@ -28,13 +28,15 @@ vi.mock("../lib/tauri-commands", () => ({
   sendMessage: vi.fn().mockResolvedValue(""),
   cancelProcessing: vi.fn().mockResolvedValue(undefined),
 }));
+const mockAgent = {
+  sendMessage: vi.fn(),
+  sendConfirmation: vi.fn(),
+  sendEvent: vi.fn(),
+  cancelProcessing: vi.fn().mockResolvedValue(undefined),
+  isProcessing: false,
+};
 vi.mock("../hooks/useAgent", () => ({
-  useAgent: () => ({
-    sendMessage: vi.fn(),
-    sendConfirmation: vi.fn(),
-    cancelProcessing: vi.fn(),
-    isProcessing: false,
-  }),
+  useAgent: () => mockAgent,
 }));
 vi.mock("../hooks/useSession", () => ({
   useSession: () => ({
@@ -78,10 +80,19 @@ const SESSION_WITH_CHANGES: SessionRecord = {
 };
 
 
-afterEach(() => cleanup());
+afterEach(() => {
+  vi.useRealTimers();
+  cleanup();
+});
 
 beforeEach(() => {
   startDraggingMock.mockClear();
+  mockAgent.sendMessage.mockReset();
+  mockAgent.sendConfirmation.mockReset();
+  mockAgent.sendEvent.mockReset();
+  mockAgent.cancelProcessing.mockReset();
+  mockAgent.cancelProcessing.mockResolvedValue(undefined);
+  mockAgent.isProcessing = false;
   useSessionStore.setState({
     changes: [],
     changeLogOpen: false,
@@ -311,6 +322,57 @@ describe("ChangesBlock", () => {
     expect(footer.className).toContain("sticky");
     expect(footer.className).toContain("z-10");
     expect(footer.className).toContain("bg-gradient-to-t");
+  });
+
+  it("shows stopping feedback immediately after stop is clicked", async () => {
+    mockAgent.isProcessing = true;
+    mockAgent.cancelProcessing.mockImplementation(() => new Promise<void>(() => {}));
+    useChatStore.setState({
+      messages: [
+        {
+          id: "msg1",
+          role: "assistant",
+          content: "Working on it.",
+          timestamp: Date.now(),
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<ChatPanel />);
+    await user.click(screen.getByTitle("Stop processing"));
+    await screen.findByText("Noah is stopping...");
+    expect(mockAgent.cancelProcessing).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-enables stop after a stalled cancel so the user can retry", async () => {
+    vi.useFakeTimers();
+    mockAgent.isProcessing = true;
+    mockAgent.cancelProcessing.mockImplementation(() => new Promise<void>(() => {}));
+    useChatStore.setState({
+      messages: [
+        {
+          id: "msg1",
+          role: "assistant",
+          content: "Still working.",
+          timestamp: Date.now(),
+        },
+      ],
+    });
+    render(<ChatPanel />);
+
+    const stopButton = screen.getByTitle("Stop processing");
+    fireEvent.click(stopButton);
+    expect(screen.getByText("Noah is stopping...")).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(screen.queryByText("Noah is stopping...")).toBeNull();
+    expect(stopButton.hasAttribute("disabled")).toBe(false);
+
+    fireEvent.click(stopButton);
+    expect(mockAgent.cancelProcessing).toHaveBeenCalledTimes(2);
   });
 });
 
