@@ -96,6 +96,24 @@ impl ScannerManager {
                 }
             }
 
+            // Skip if a completed scan exists from less than 1 hour ago.
+            {
+                let conn = self.db.lock().await;
+                if let Ok(Some(latest)) = journal::get_latest_scan_job(&conn, &scan_type) {
+                    if latest.status == "completed" {
+                        if let Some(ref ts) = latest.completed_at {
+                            if let Ok(completed) = chrono::DateTime::parse_from_rfc3339(ts) {
+                                let elapsed = chrono::Utc::now() - completed.to_utc();
+                                if elapsed < chrono::Duration::hours(1) {
+                                    eprintln!("[scanner] {} skipped: completed {}m ago", scan_type, elapsed.num_minutes());
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Check system load.
             if !scanner.is_system_idle() {
                 eprintln!("[scanner] {} skipped: system busy", scan_type);
@@ -143,21 +161,23 @@ impl ScannerManager {
             let now = chrono::Utc::now().to_rfc3339();
             match progress {
                 Ok(p) => {
-                    let status = if p.done { "completed" } else { "running" };
+                    // A tick always runs to completion (budget exhausted or scan finished).
+                    // Mark as "completed" either way — progress state is saved in config
+                    // so the next cycle resumes where we left off.
                     let job = journal::ScanJobRecord {
                         id: job_id,
                         scan_type: scan_type.clone(),
-                        status: status.to_string(),
+                        status: "completed".to_string(),
                         progress_pct: p.progress_pct,
                         progress_detail: Some(p.detail.clone()),
                         budget_secs: Some(budget_per_scanner.as_secs() as i32),
                         started_at: None, // preserve existing
                         updated_at: Some(now.clone()),
-                        completed_at: if p.done { Some(now) } else { None },
+                        completed_at: Some(now),
                         config: None,
                     };
                     let _ = journal::upsert_scan_job(&conn, &job);
-                    self.emit_progress(&scan_type, scanner.display_name(), status, p.progress_pct, &p.detail);
+                    self.emit_progress(&scan_type, scanner.display_name(), "completed", p.progress_pct, &p.detail);
                 }
                 Err(e) => {
                     eprintln!("[scanner] {} tick failed: {}", scan_type, e);

@@ -147,6 +147,7 @@
     "pause": "Pause",
     "resume": "Resume",
     "scanNow": "Scan Now",
+    "rescan": "Rescan",
     "starting": "Starting...",
     "waitingFirstScan": "Waiting for first scan (starts automatically)",
     "scanFooter": "Scan results are used by Noah to give faster, more accurate advice when you ask about disk space, performance, or system health. Data stays on your device."

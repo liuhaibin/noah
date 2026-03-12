@@ -3,6 +3,7 @@ mod commands;
 pub mod debug_runner;
 mod knowledge;
 mod machine_context;
+mod system_snapshot;
 mod platform;
 mod playbooks;
 mod proactive;
@@ -301,8 +302,15 @@ pub fn run() {
                 Arc::new(Mutex::new(HashMap::<String, oneshot::Sender<bool>>::new()));
 
             // Gather OS context for the system prompt.
-            let os_context = machine_context::MachineContext::load_or_gather(&app_dir)
+            let machine_ctx = machine_context::MachineContext::load_or_gather(&app_dir)
                 .to_prompt_string();
+            let snapshot_ctx = system_snapshot::SystemSnapshot::load_or_gather(&app_dir)
+                .to_prompt_string();
+            let os_context = if snapshot_ctx.is_empty() {
+                machine_ctx
+            } else {
+                format!("{}\n{}", machine_ctx, snapshot_ctx)
+            };
 
             // Build the orchestrator.
             let orchestrator =
@@ -318,6 +326,7 @@ pub fn run() {
 
             // Clone app_dir before moving into AppState (needed for background refresh).
             let ctx_dir = app_dir.clone();
+            let snap_dir = app_dir.clone();
 
             // Manage shared state.
             app.manage(AppState {
@@ -331,11 +340,16 @@ pub fn run() {
                 scanner_pause,
             });
 
-            // Refresh machine context in background (avoids blocking main thread
-            // with slow PowerShell/WMI commands on Windows).
+            // Refresh machine context and system snapshot in background (avoids
+            // blocking main thread with slow commands on Windows).
             tauri::async_runtime::spawn(async move {
                 tokio::task::spawn_blocking(move || {
                     machine_context::MachineContext::refresh_if_stale(&ctx_dir);
+                }).await.ok();
+            });
+            tauri::async_runtime::spawn(async move {
+                tokio::task::spawn_blocking(move || {
+                    system_snapshot::SystemSnapshot::refresh_if_stale(&snap_dir);
                 }).await.ok();
             });
 

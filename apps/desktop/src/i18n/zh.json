@@ -147,6 +147,7 @@
     "pause": "暂停",
     "resume": "恢复",
     "scanNow": "立即扫描",
+    "rescan": "重新扫描",
     "starting": "启动中...",
     "waitingFirstScan": "等待首次扫描（自动开始）",
     "scanFooter": "扫描结果帮助 Noah 在你询问磁盘空间、性能或系统健康状况时提供更快、更准确的建议。数据保留在你的设备上。"

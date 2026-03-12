@@ -78,18 +78,30 @@ function ScanJobItem({
     (displayNameKey ? t(displayNameKey) : job.scan_type);
   const isRunning = status === "running";
   const isPaused = status === "paused";
+  const hasRecentScan = (() => {
+    const ts = job.completed_at || job.updated_at;
+    if (!ts || status === "queued") return false;
+    return Date.now() - new Date(ts).getTime() < 60 * 60 * 1000; // < 1h
+  })();
+
+  // When running, reset pct to the live value (don't carry over 100% from a prior run).
+  const displayPct = isRunning ? (liveProgress?.progress_pct ?? 0) : pct;
+
+  // Build a single status line: detail text when running, otherwise the status label.
+  const statusText = isRunning
+    ? detail || t("diagnostics.starting")
+    : isPaused
+      ? detail || t(STATUS_LABEL_KEYS.paused)
+      : STATUS_LABEL_KEYS[status]
+        ? t(STATUS_LABEL_KEYS[status])
+        : status;
 
   return (
     <div className="border border-border-primary/50 rounded-lg p-4">
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-base font-medium text-text-primary">
-            {displayName}
-          </span>
-          <span className={`text-xs font-medium ${statusColor(status)}`}>
-            {STATUS_LABEL_KEYS[status] ? t(STATUS_LABEL_KEYS[status]) : status}
-          </span>
-        </div>
+        <span className="text-base font-medium text-text-primary">
+          {displayName}
+        </span>
         <div className="flex items-center gap-2">
           {isRunning ? (
             <button
@@ -110,32 +122,34 @@ function ScanJobItem({
               onClick={() => onTrigger(job.scan_type)}
               className="text-xs px-2.5 py-1 rounded-md bg-bg-tertiary text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
             >
-              {t("diagnostics.scanNow")}
+              {hasRecentScan ? t("diagnostics.rescan") : t("diagnostics.scanNow")}
             </button>
           )}
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="w-full h-1.5 bg-bg-tertiary rounded-full overflow-hidden mb-2">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${
-            isRunning
-              ? "bg-accent-blue"
-              : status === "completed"
-                ? "bg-accent-green"
-                : status === "failed"
-                  ? "bg-accent-red"
-                  : "bg-text-muted"
-          }`}
-          style={{ width: `${Math.max(pct, isRunning ? 2 : 0)}%` }}
-        />
-      </div>
+      {/* Progress bar — only show when actively running or paused */}
+      {(isRunning || isPaused) && (
+        <div className="w-full h-1.5 bg-bg-tertiary rounded-full overflow-hidden mb-2">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              isRunning ? "bg-accent-blue" : "bg-accent-yellow"
+            }`}
+            style={{ width: `${Math.max(displayPct, 2)}%` }}
+          />
+        </div>
+      )}
 
       <div className="flex items-center justify-between text-xs text-text-muted">
-        <span className="truncate flex-1 mr-4">{detail}</span>
+        <span className={`truncate flex-1 mr-4 ${statusColor(status)}`}>
+          {statusText}
+        </span>
         <span className="flex-shrink-0">
-          Last: {formatRelativeTime(job.completed_at || job.updated_at)}
+          {job.completed_at
+            ? formatRelativeTime(job.completed_at)
+            : job.updated_at
+              ? formatRelativeTime(job.updated_at)
+              : ""}
         </span>
       </div>
     </div>
